@@ -872,10 +872,14 @@ function drawShaft(g, s, pulse){
   if (xL > VW + 100 || xR < -100) return;
   const top = sh.landY - 40 - g.camY, bottom = s.y - 110 - g.camY, roof = s.y - g.camY;
   // billboard on stilts: the left wall
-  ctx.fillStyle = '#2a2036'; ctx.fillRect(xL - 66, bottom, 4, roof - bottom); ctx.fillRect(xL - 14, bottom, 4, roof - bottom);
+  ctx.fillStyle = '#2a2036'; ctx.fillRect(xL - 66, bottom, 4, roof - bottom); ctx.fillRect(xL - 40, bottom, 4, roof - bottom);   // stilts kept clear of the takeoff mark
   ctx.fillStyle = '#1b1426'; ctx.fillRect(xL - 76, top, 76, bottom - top);
   ctx.fillStyle = 'rgba(255,138,216,.12)'; ctx.fillRect(xL - 70, top + 8, 64, bottom - top - 16);
   ctx.fillStyle = C.pink; ctx.globalAlpha = 0.6 + 0.4 * pulse; ctx.fillRect(xL - 1, top, 2, bottom - top); ctx.globalAlpha = 1;
+  // takeoff mark for the ↑ into the shaft, drawn over the billboard so it reads like every other jump
+  const tx = s.T * PPB - s.ox - g.camX;
+  ctx.save(); ctx.fillStyle = C.amber; ctx.shadowColor = C.amber; ctx.shadowBlur = 8 + 8 * pulse;
+  ctx.fillRect(tx - 1, roof - 14, 2, 14); ctx.restore();
   // a key mark at every contact: lime → on the building, pink ← on the billboard
   for (const k of sh.kicks) {
     const cx = k.wall === 'R' ? xR : xL, cy = k.y - 30 - g.camY, col = NOTE_COLOR[k.dir], sgn = k.dir === 'right' ? 1 : -1;
