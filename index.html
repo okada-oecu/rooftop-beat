@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Rooftop Beat (local)</title>
+<!-- Local launcher: loads rooftop-beat.html into a full page, so you edit that one file and just reload. -->
+<script>
+fetch('rooftop-beat.html', { cache: 'no-store' })
+  .then(r => r.text())
+  .then(src => {
+    document.open();
+    document.write('<!doctype html><html lang="ja"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">'
+      + '<style>[hidden]{display:none!important}</style></head><body>' + src + '</body></html>');
+    document.close();
+  })
+  .catch(() => {
+    document.body.textContent = 'rooftop-beat.html を読み込めませんでした。start.command から起動するか、公開URLで開いてください（ファイルを直接開くと読み込めません）。';
+  });
+</script>

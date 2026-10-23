@@ -1,0 +1,1714 @@
+<title>Rooftop Beat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: full-bleed canvas (dusk city, rooftops, note lane at the bottom); menus are panels floating over a live demo run */
+:root{
+  --night:#150b29;
+  --amber:#ffb547;   /* ↑ jump */
+  --teal:#5fe1d9;    /* ↑ hold (charge) */
+  --lilac:#c7a6ff;   /* ↓ slide */
+  --lime:#b6f06a;    /* → wall kick */
+  --ink:#fff4e6;
+  --muted:#b6a5c8;
+  --panel:rgba(18,11,32,.88);
+  --display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--night);color:var(--ink);font-family:var(--body)}
+canvas{display:block;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+.overlay{position:fixed;inset:0;display:grid;place-items:center;padding:16px;overflow:auto}
+.panel{width:100%;max-width:580px;background:var(--panel);border:1px solid rgba(255,181,71,.22);border-radius:6px;padding:28px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px;backdrop-filter:blur(3px)}
+.eyebrow{margin:0;font:700 12px/1 var(--mono);letter-spacing:.22em;color:var(--teal)}
+h1,h2{margin:0;font-family:var(--display);font-weight:400;text-wrap:balance}
+h1{font-size:clamp(42px,10vw,74px);line-height:.92;letter-spacing:.01em}
+h1 span{color:var(--amber)}
+h2{font-size:clamp(30px,7vw,46px);line-height:1}
+.lede{margin:0;color:var(--muted);line-height:1.7;font-size:15px}
+.howto{display:grid;grid-template-columns:auto 1fr;gap:9px 12px;font-size:14px;line-height:1.5;align-items:baseline}
+.key{display:inline-grid;place-items:center;width:30px;height:24px;border-radius:5px;font:700 14px var(--mono);color:#1a0f08}
+.key.up{background:var(--amber)} .key.hold{background:var(--teal)} .key.down{background:var(--lilac)} .key.right{background:var(--lime)} .key.left{background:#ff8ad8}
+.howto b{font-weight:700}
+.howto small{color:var(--muted);font-size:12px}
+kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid rgba(255,244,230,.3);background:rgba(255,244,230,.06);white-space:nowrap}
+.stages{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stage{all:unset;cursor:pointer;display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:5px;border:1px solid rgba(255,244,230,.16);background:rgba(255,244,230,.04);transition:border-color .15s,background .15s;min-width:0}
+.stage:hover{border-color:var(--amber);background:rgba(255,181,71,.08)}
+.stage:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.stage.song{grid-column:1/-1;border-color:rgba(255,181,71,.45);background:rgba(255,181,71,.07)}
+.stage[disabled]{cursor:progress;opacity:.6}
+.stage .bpm{font:700 26px/1 var(--mono);color:var(--amber);font-variant-numeric:tabular-nums}
+.stage .bpm small{font-size:11px;color:var(--muted);margin-left:4px;letter-spacing:.1em}
+.stage .name{font-weight:700;font-size:15px}
+.stage .desc{font-size:12px;color:var(--muted);line-height:1.5}
+.stage .best{font:500 11px var(--mono);color:var(--muted);letter-spacing:.06em}
+.offset{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.offset input{flex:1;min-width:120px;accent-color:var(--amber)}
+.offset output{font:700 12px var(--mono);color:var(--ink);min-width:58px;text-align:right}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:12px}
+.stat{display:flex;flex-direction:column;gap:4px}
+.stat b{font:700 24px/1 var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font:500 11px var(--mono);letter-spacing:.14em;color:var(--muted)}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.btn{all:unset;cursor:pointer;padding:12px 18px;border-radius:5px;font-weight:700;font-size:15px;border:1px solid rgba(255,244,230,.25)}
+.btn.primary{background:var(--amber);color:#1a0f08;border-color:var(--amber)}
+.btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+#cal{z-index:6;background:rgba(10,6,18,.82)}
+#cal .panel{background:#1a1030}
+.cal-dots{display:flex;gap:6px;flex-wrap:wrap}
+.cal-dots i{width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,244,230,.3)}
+.cal-dots i.on{background:var(--amber);border-color:var(--amber)}
+.cal-dots i.prep{border-style:dashed}
+.newbest{color:var(--amber);font:700 12px var(--mono);letter-spacing:.18em;margin:0}
+.cause{margin:0;color:var(--muted);font-size:14px}
+#pauseBtn{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:16px;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,244,230,.3);background:rgba(18,11,32,.6);color:var(--ink);font:700 14px var(--mono);cursor:pointer}
+#pauseBtn:focus-visible{outline:2px solid var(--teal)}
+.hint{font-size:12px;color:var(--muted);margin:0;line-height:1.6}
+.mine{display:flex;flex-direction:column;gap:10px;border-top:1px solid rgba(255,244,230,.12);padding-top:16px}
+.mine-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.mine h3{margin:0;font:400 20px/1.2 var(--display)}
+.mysong{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid rgba(255,244,230,.14);border-radius:5px}
+.mysong .meta{min-width:0;display:flex;flex-direction:column;gap:4px}
+.mysong b{font-size:15px;overflow-wrap:anywhere}
+.mysong span{font:500 11px/1.5 var(--mono);color:var(--muted)}
+.mini{all:unset;cursor:pointer;padding:7px 11px;border-radius:4px;border:1px solid rgba(255,244,230,.22);font-weight:700;font-size:13px;white-space:nowrap}
+.mini.primary{background:var(--amber);color:#1a0f08;border-color:var(--amber)}
+.mini.danger{color:#ffb3bf;border-color:rgba(255,93,115,.4)}
+.mini:focus-visible,.ed-btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+.mini[disabled]{opacity:.6;cursor:progress}
+.editor{position:fixed;inset:0;display:flex;flex-direction:column;background:#120a22;z-index:5}
+.ed-bar,.ed-foot{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:10px 16px;background:#1d1233;font-size:13px}
+.ed-bar{border-bottom:1px solid rgba(255,244,230,.1);padding-top:calc(10px + env(safe-area-inset-top,0px))}
+.ed-foot{border-top:1px solid rgba(255,244,230,.1);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+.ed-btn{all:unset;cursor:pointer;padding:7px 11px;border-radius:4px;border:1px solid rgba(255,244,230,.22);font-weight:700;font-size:13px;white-space:nowrap}
+.ed-btn.primary{background:var(--amber);color:#1a0f08;border-color:var(--amber)}
+.field{display:flex;align-items:center;gap:6px;color:var(--muted);white-space:nowrap}
+.field input,.field select{background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:6px 8px;font:500 13px var(--mono);width:84px;box-sizing:border-box}
+.field input[type=range]{width:110px;padding:0;border:0;accent-color:var(--amber)}
+.field input[type=checkbox]{width:auto;accent-color:var(--amber)}
+#edTitle{width:min(240px,60vw);font-family:var(--body)}
+#edCanvas{flex:1;min-height:180px;width:100%;display:block;cursor:crosshair;touch-action:none}
+.spacer{flex:1}
+.ed-seek{display:flex;align-items:center;gap:10px;flex-basis:100%;color:var(--muted);font-size:12px}
+.ed-seek input{flex:1;min-width:0;accent-color:var(--amber);height:22px}
+.mono{font-family:var(--mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+#edStatus{color:var(--teal);font-size:12px;flex-basis:100%}
+#edErrors{display:flex;flex-wrap:wrap;gap:6px;max-height:84px;overflow:auto;padding:8px 16px;background:#1d1233;font-size:12px;color:var(--muted)}
+#edErrors button{all:unset;cursor:pointer;padding:3px 8px;border-radius:3px;background:rgba(255,93,115,.14);color:#ffb3bf}
+#jsonDlg{z-index:6;background:rgba(10,6,18,.6)}
+#jsonText{width:100%;min-height:160px;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:10px;font:12px/1.5 var(--mono)}
+#pad{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
+#pad button{width:64px;height:64px;border-radius:50%;border:2px solid currentColor;background:rgba(18,11,32,.55);font:700 24px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
+#pad [data-dir=up]{color:var(--amber)} #pad [data-dir=down]{color:var(--lilac)} #pad [data-dir=right]{color:var(--lime)} #pad [data-dir=left]{color:#ff8ad8}
+#pad button.on{background:currentColor}
+</style>
+
+<canvas id="c" aria-label="ゲーム画面" tabindex="-1"></canvas>
+<button id="pauseBtn" hidden aria-label="一時停止">II</button>
+<div id="pad" hidden>
+  <button data-dir="left" aria-label="壁ジャンプ（左）">←</button>
+  <button data-dir="down" aria-label="スライディング">↓</button>
+  <button data-dir="up" aria-label="ジャンプ">↑</button>
+  <button data-dir="right" aria-label="壁キック">→</button>
+</div>
+
+<div id="menu" class="overlay">
+  <div class="panel">
+    <p class="eyebrow">RHYTHM PARKOUR</p>
+    <h1>ROOFTOP<br><span>BEAT</span></h1>
+    <p class="lede">ビートに合わせて屋上から屋上へ。踏み外したり、ぶつかったら一発アウト。</p>
+    <div class="howto">
+      <span class="key up">↑</span><span><b>ジャンプ</b> … 屋上の端で拍に合わせて押す</span>
+      <span class="key hold">↑</span><span><b>溜めジャンプ</b> … 長押しで溜めて、終わりの拍で離す。広い谷を越える</span>
+      <span class="key down">↓</span><span><b>スライディング</b> … 配管の下をくぐる。押し忘れると激突</span>
+      <span class="key right">→</span><span><b>壁キック</b> … 高いビルへ↑で跳び、壁に着いた拍で→。屋上へ駆け上がる</span>
+      <span class="key left">←</span><span><b>壁ジャンプ</b> … 看板とビルの間へ↑で跳び、右の壁に着いたら →、左の壁に着いたら ← を交互に。マリオのように壁を蹴って登る</span>
+    </div>
+    <div class="stages" id="stages"></div>
+    <section class="mine">
+      <div class="mine-head"><h3>マイ曲</h3><label class="mini primary" for="fileIn">＋ 曲を入れて譜面を作る</label></div>
+      <input type="file" id="fileIn" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" hidden>
+      <p class="hint">手持ちの音楽ファイルを選ぶと、BPMと拍の位置を自動で解析して譜面を作ります。エディタで1つずつ置き直したり、曲を流しながら矢印キーで打ち込んだりできます。</p>
+      <p class="hint" id="mineNote"></p>
+      <div id="mineList" class="stats" style="grid-template-columns:1fr"></div>
+    </section>
+    <label class="offset" for="offset">判定オフセット
+      <input id="offset" type="range" min="-100" max="400" step="5" value="0">
+      <output id="offsetOut">0 ms</output>
+    </label>
+    <div class="row" style="margin-top:-8px"><button class="mini" id="calBtn">音に合わせて自動調整</button></div>
+    <p class="hint" style="margin-top:-6px"><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd> や <kbd>Space</kbd>（＝↑）でも操作できます。スマホは画面右下のボタン。曲と譜面がズレて感じたら「音に合わせて自動調整」を（ワイヤレスイヤホンは特に遅れます）。<kbd>Esc</kbd> で一時停止。</p>
+  </div>
+</div>
+
+<div id="cal" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow">TIMING</p>
+    <h2 style="font-size:28px">タイミング調整</h2>
+    <p class="lede">クリック音に合わせて <kbd>Space</kbd>（スマホは画面タップ）を押してください。最初の4回は準備の音で、そのあとの16回を測ります。画面は見ずに、音だけに合わせるのがコツです。</p>
+    <div id="calDots" class="cal-dots" aria-hidden="true"></div>
+    <p class="hint" id="calMsg">いまのイヤホン・スピーカーで測ってください。機器を変えたら測り直すと正確です。</p>
+    <div class="row"><button class="btn primary" id="calStart">開始</button><button class="btn primary" id="calApply" hidden>この値にする</button><button class="btn" id="calClose">閉じる</button></div>
+  </div>
+</div>
+
+<div id="over" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow" id="overStage">STAGE</p>
+    <h2 id="overTitle">踏み外した</h2>
+    <p class="cause" id="overCause"></p>
+    <p class="newbest" id="newBest" hidden>NEW BEST</p>
+    <div class="stats">
+      <div class="stat"><b id="sScore">0</b><span>SCORE</span></div>
+      <div class="stat"><b id="sJumps">0</b><span>屋上</span></div>
+      <div class="stat"><b id="sCombo">0</b><span>MAX COMBO</span></div>
+      <div class="stat"><b id="sBest">0</b><span>BEST</span></div>
+    </div>
+    <div class="stats" id="sGrades"></div>
+    <div class="row">
+      <button class="btn primary" id="retry">もう一度（Space）</button>
+      <button class="btn" id="toMenu">ステージ選択</button>
+    </div>
+  </div>
+</div>
+
+<div id="pause" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow">PAUSED</p>
+    <h2>一時停止中</h2>
+    <div class="row">
+      <button class="btn primary" id="resume">再開</button>
+      <button class="btn" id="quit">ステージ選択</button>
+    </div>
+  </div>
+</div>
+
+<div id="editor" class="editor" hidden>
+  <div class="ed-bar">
+    <label class="field">曲名 <input id="edTitle" type="text" maxlength="60"></label>
+    <label class="field">BPM <input id="edBpm" type="number" step="0.01" min="40" max="300"></label>
+    <button class="ed-btn" id="edHalf" title="BPMを半分に">÷2</button>
+    <button class="ed-btn" id="edDouble" title="BPMを倍に">×2</button>
+    <button class="ed-btn" id="edTap">タップで計る</button>
+    <label class="field">最初の拍 <input id="edPhase" type="number" step="1"> ms</label>
+    <label class="field">細かさ <select id="edSnap"><option value="2">1/2拍</option><option value="4">1/4拍</option></select></label>
+    <label class="field">難しさ <select id="edDiff"><option value="0.35">やさしい</option><option value="0.6">ふつう</option><option value="0.85">むずかしい</option></select></label>
+    <button class="ed-btn" id="edAuto">自動で譜面を作る</button>
+    <span class="spacer"></span>
+    <button class="ed-btn" id="edTestAuto">オートで確認</button>
+    <button class="ed-btn primary" id="edTest">テストプレイ</button>
+    <button class="ed-btn" id="edClose">閉じる</button>
+    <span id="edStatus"></span>
+  </div>
+  <canvas id="edCanvas" aria-label="譜面のタイムライン。行をクリックしてノーツを置く・消す"></canvas>
+  <div id="edErrors" hidden></div>
+  <div class="ed-foot">
+    <label class="ed-seek" for="edSeek">再生位置 <input type="range" id="edSeek" min="0" max="100" step="0.25" value="0"></label>
+    <button class="ed-btn primary" id="edPlay">▶ 再生</button>
+    <label class="field"><input type="checkbox" id="edClick" checked> メトロノーム</label>
+    <label class="field"><input type="checkbox" id="edRec"> 録音（再生中に ↑↓→ で置く・↑長押しで溜め）</label>
+    <label class="field">拡大 <input type="range" id="edZoom" min="16" max="200" value="64"></label>
+    <button class="ed-btn" id="edUndo">元に戻す</button>
+    <button class="ed-btn" id="edClear">全消去</button>
+    <button class="ed-btn" id="edJson">書き出し / 読み込み</button>
+    <span class="spacer"></span>
+    <span class="mono" id="edCount"></span>
+    <span class="mono" id="edPos"></span>
+    <span class="mono" id="edSaved"></span>
+  </div>
+</div>
+
+<div id="jsonDlg" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow">CHART DATA</p>
+    <h2 style="font-size:28px">譜面の書き出し / 読み込み</h2>
+    <p class="hint">このテキストが譜面そのものです。コピーして保存・共有できます。別の譜面を貼り付けて「読み込む」と置き換わります。</p>
+    <textarea id="jsonText" spellcheck="false" aria-label="譜面データ"></textarea>
+    <p class="hint" id="jsonMsg"></p>
+    <div class="row"><button class="btn primary" id="jsonCopy">コピー</button><button class="btn" id="jsonLoad">読み込む</button><button class="btn" id="jsonClose">閉じる</button></div>
+  </div>
+</div>
+
+<script>
+(() => {
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let W, H, DPR, ZOOM, VW, VH;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ZOOM = Math.max(0.5, Math.min(1.1, Math.min(W / 1000, H / 620)));
+  VW = W / ZOOM; VH = H / ZOOM;
+}
+window.addEventListener('resize', resize); resize();
+
+const C = { amber:'#ffb547', teal:'#5fe1d9', lilac:'#c7a6ff', lime:'#b6f06a', ink:'#fff4e6', muted:'#b6a5c8', danger:'#ff5d73', roof:'#120d1a', dark:'#1a0f08' };
+C.pink = '#ff8ad8';
+const NOTE_COLOR = { up:C.amber, hold:C.teal, down:C.lilac, right:C.lime, left:C.pink };
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const TOUCH = matchMedia('(pointer: coarse)').matches;
+const PPB = 180;                 // world px per beat; the runner always moves at one beat = PPB
+const WIN = { perfect:.045, great:.09, good:.13 };
+const WALL_H = 170;              // a wall-kick building is this much taller
+const CONTACT = 70;              // the runner touches the wall this far below its roof
+const KICK = 1;                  // beats from the kick to landing on the roof
+// wall-jump shaft: a gap between a billboard (left wall) and a tall building (right wall).
+// on the right wall press →, on the left wall press ←; each kick climbs SHAFT_RISE.
+const SHAFT_W = 150, SHAFT_FIRST = 40, SHAFT_RISE = 80, SHAFT_TOP = 70;
+function makeShaft(seg, times){
+  const xL = seg.T * PPB - seg.ox + 12, xR = xL + SHAFT_W;
+  // contacts alternate right wall, left wall…; the key is the side of the wall you are touching
+  const kicks = times.map((t, i) => ({ t, wall: i % 2 ? 'L' : 'R', dir: i % 2 ? 'left' : 'right', x: i % 2 ? xL + 12 : xR - 12, y: seg.y - SHAFT_FIRST - SHAFT_RISE * i }));
+  const last = kicks[kicks.length - 1], land = last.t + 1, landX = xR + 70;
+  seg.shaft = { xL, xR, kicks, land, landY: last.y - SHAFT_TOP, landX, oxNext: land * PPB - landX };
+  seg.air = land - seg.T;
+}
+/* Imported tracks. bpm/phase (first beat, s) and per-bar loudness were measured offline from each file.
+   phaseRef is what measurePhase() finds on the reference decode; at load time the same measurement on the
+   browser's decode corrects for decoder delay (AAC priming etc.). maxD caps chart difficulty. */
+const SONGS = {
+  pupa: {
+    file:'pupa.mp3', bpm:136.99, phase:0.374, phaseRef:0.374, endBeat:472, maxD:0.85,
+    bars:[0.4,0.47,0.46,0.45,0.62,0.62,0.63,0.69,0.64,0.66,0.64,0.46,0.64,0.64,0.63,0.66,0.66,0.59,0.6,0.61,0.5,0.51,0.49,0.51,0.63,0.62,0.69,0.62,0.8,0.78,0.76,0.74,0.79,0.77,0.75,0.81,0.8,0.8,0.78,0.76,0.88,0.8,0.75,0.83,0.4,0.66,0.73,0.68,0.73,0.71,0.7,0.68,0.76,0.7,0.72,0.71,0.75,0.72,0.72,0.68,0.45,0.91,0.88,0.85,0.85,0.92,0.85,0.89,0.91,0.59,0.51,0.48,0.52,0.63,0.6,0.67,0.64,0.56,0.77,0.43,0.67,0.85,0.78,0.76,0.82,0.89,0.83,0.77,0.75,0.9,0.8,0.76,0.84,0.49,0.78,0.73,0.74,0.77,0.77,0.74,0.81,0.83,0.85,0.8,0.84,0.8,0.83,0.82,0.83,0.79,0.59,0.56,0.54,0.55,0.53,0.55,0.55,0.74,0.17],
+  },
+  outside: {
+    file:'outside.mp4', bpm:174, phase:0.350, phaseRef:0.345, endBeat:288, maxD:0.6,
+    bars:[0.21,0.22,0.24,0.31,0.23,0.21,0.22,0.29,0.76,0.67,0.94,0.95,0.8,0.67,0.95,0.74,0.78,0.64,0.94,0.94,0.78,0.64,0.95,0.56,0.67,0.74,0.7,0.76,0.69,0.73,0.68,0.74,0.68,0.76,0.69,0.74,0.7,0.73,0.61,0.46,0.77,0.67,0.94,0.95,0.8,0.67,0.95,0.74,0.78,0.64,0.94,0.93,0.78,0.63,0.95,0.64,0.26,0.21,0.23,0.22,0.23,0.21,0.23,0.21,0.18,0.18,0.18,0.19,0.17,0.19,0.18,0.18,0.13,0.01],
+  },
+};
+for (const s of Object.values(SONGS)) {
+  s.buffer = null; s.state = 'idle';
+  // a quiet bar followed by a loud one is a drop: a charge jump lands right on it
+  s.drops = s.bars.map((e, i) => (e < 0.5 && s.bars[i + 1] > 0.65) ? (i + 1) * 4 : null).filter(v => v != null);
+}
+const songEnergy = (s, b) => s.bars[clamp(Math.floor(b / 4), 0, s.bars.length - 1)];
+const STAGES = [
+  { id:'pupa', jp:'pupa (inst)', bpm:SONGS.pupa.bpm, diff:0, song:SONGS.pupa, desc:'持ち込み曲・3:29。曲の盛り上がりで譜面が変わり、最後まで走り切ればクリア' },
+  { id:'outside', jp:'outside — LilZiLLA', bpm:174, diff:0, song:SONGS.outside, desc:'持ち込み曲・1:42。174 BPMの高速曲。2回あるドロップに溜めジャンプで飛び込む' },
+  { id:'dusk', jp:'夕暮れの屋上', bpm:108, diff:0,    desc:'ゆったり。4種類の動きに慣れる' },
+  { id:'neon', jp:'ネオン街',     bpm:128, diff:0.3,  desc:'8分の連続ジャンプと配管が増える' },
+  { id:'sky',  jp:'摩天楼',       bpm:150, diff:0.55, desc:'速い。壁キックと溜めが頻繁に' },
+];
+const PROG = [ {root:57,tri:[0,3,7]}, {root:53,tri:[0,4,7]}, {root:48,tri:[0,4,7]}, {root:55,tri:[0,4,7]} ];
+const HINTS = {
+  up:'白い輪にノーツが重なった瞬間に ↑',
+  hold:'↑ を長押しで溜めて、帯の終わりで離す',
+  down:'↓ でスライディング。配管の下をくぐる',
+  right:'↑ で壁へ跳び、壁に着いた拍で → 壁キック',
+  left:'壁ジャンプ：右の壁に着いたら →、左の壁に着いたら ←',
+  shaft:'壁ジャンプ：右の壁に着いたら →、左の壁に着いたら ←',
+};
+
+const store = {
+  get(k, d){ try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+};
+let offsetMs = store.get('rb-offset', 0);
+
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
+const frac = b => ((b % 1) + 1) % 1;
+function mulberry32(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function hash(a, b, c){ let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
+
+/* ---------------- audio ---------------- */
+let actx = null, comp = null, bus = null, noiseBuf = null;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+function initAudio(){
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  comp = actx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  comp.connect(actx.destination);
+  noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
+  const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+}
+const latency = () => (actx ? (actx.outputLatency || actx.baseLatency || 0) : 0) + offsetMs / 1000;
+function env(g, t, a, peak, d){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
+function tone(t, type, freq, dur, peak, dest){
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t); env(g, t, 0.004, peak, dur);
+  o.connect(g).connect(dest || bus); o.start(t); o.stop(t + dur + 0.05); return o;
+}
+function noise(t, dur, type, freq, peak, dest, sweepTo){
+  const s = actx.createBufferSource(), f = actx.createBiquadFilter(), g = actx.createGain();
+  s.buffer = noiseBuf; f.type = type; f.frequency.setValueAtTime(freq, t);
+  if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
+  env(g, t, 0.001, peak, dur);
+  s.connect(f).connect(g).connect(dest || bus); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+}
+function kick(t, v){ const o = actx.createOscillator(), g = actx.createGain(); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12); env(g, t, 0.002, 0.9 * v, 0.3); o.connect(g).connect(bus); o.start(t); o.stop(t + 0.4); }
+function snare(t){ noise(t, 0.16, 'bandpass', 1900, 0.45); tone(t, 'triangle', 185, 0.08, 0.22); }
+function hat(t, v){ noise(t, 0.035, 'highpass', 8000, 0.16 * v); }
+function bassNote(t, midi, dur){
+  const o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+  o.type = 'sawtooth'; o.frequency.value = mtof(midi); f.type = 'lowpass'; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(220, t + dur);
+  env(g, t, 0.005, 0.28, dur); o.connect(f).connect(g).connect(bus); o.start(t); o.stop(t + dur + 0.05);
+}
+function pluck(t, midi, v){
+  const f = actx.createBiquadFilter(), g = actx.createGain();
+  f.type = 'lowpass'; f.frequency.setValueAtTime(4200, t); f.frequency.exponentialRampToValueAtTime(600, t + 0.25);
+  env(g, t, 0.003, 0.22 * (v || 1), 0.32); f.connect(g).connect(bus);
+  ['square', 'triangle'].forEach((ty, i) => { const o = actx.createOscillator(); o.type = ty; o.frequency.value = mtof(midi) * (i ? 2.003 : 1); o.connect(f); o.start(t); o.stop(t + 0.4); });
+}
+function pad(t0, t1, midi){
+  const f = actx.createBiquadFilter(), g = actx.createGain();
+  f.type = 'lowpass'; f.Q.value = 6; f.frequency.setValueAtTime(300, t0); f.frequency.exponentialRampToValueAtTime(3400, t1);
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.13, t0 + 0.05); g.gain.setValueAtTime(0.13, t1 - 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t1 + 0.05);
+  f.connect(g).connect(bus);
+  [0, 7, 12].forEach((iv, i) => { const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(mtof(midi + iv), t0); o.frequency.exponentialRampToValueAtTime(mtof(midi + iv) * 1.06, t1); o.detune.value = (i - 1) * 7; o.connect(f); o.start(t0); o.stop(t1 + 0.1); });
+}
+function sfx(kind){
+  if (!actx || !G || G.demo) return;
+  const t = actx.currentTime;
+  if (kind === 'jump') noise(t, 0.12, 'bandpass', 2600, 0.12, comp);
+  if (kind === 'big') { noise(t, 0.3, 'bandpass', 1400, 0.2, comp); const o = tone(t, 'sine', 300, 0.25, 0.15, comp); o.frequency.exponentialRampToValueAtTime(900, t + 0.25); }
+  if (kind === 'slide') noise(t, 0.3, 'lowpass', 2400, 0.22, comp, 300);
+  if (kind === 'kick') { tone(t, 'square', 520, 0.06, 0.12, comp); noise(t, 0.08, 'highpass', 3000, 0.18, comp); }
+  if (kind === 'land') { const o = tone(t, 'sine', 120, 0.1, 0.25, comp); o.frequency.exponentialRampToValueAtTime(60, t + 0.1); }
+  if (kind === 'stumble') tone(t, 'square', 140, 0.08, 0.1, comp);
+  if (kind === 'crash') { noise(t, 0.25, 'lowpass', 900, 0.5, comp); tone(t, 'sine', 70, 0.3, 0.4, comp); }
+  if (kind === 'fail') { const o = tone(t, 'sawtooth', 420, 0.7, 0.18, comp); o.frequency.exponentialRampToValueAtTime(60, t + 0.7); }
+}
+function playStep(g, step, t){
+  const beat = Math.floor(step / 4), sub = step % 4, s16 = step % 16, bar = Math.floor(step / 16), ch = PROG[bar % 4], q = g.spb / 4;
+  if (beat < 8) {
+    if (sub === 0 && beat < 4) hat(t, 1.4);
+    if (sub === 0 && beat >= 4) tone(t, 'square', beat === 7 ? 1760 : 880, 0.06, 0.1);
+    return;
+  }
+  if (sub === 0) kick(t, 1);
+  if (s16 === 10 && bar % 2 === 1) kick(t, 0.6);
+  if (s16 === 4 || s16 === 12) snare(t);
+  if (sub === 2) hat(t, 1); else if (g.stage.bpm >= 128 && sub % 2 === 1) hat(t, 0.35);
+  if (step % 2 === 0) bassNote(t, ch.root - 24 + (sub === 2 ? 12 : 0), q * 1.7);
+  if (s16 === 0) ch.tri.forEach(iv => pluck(t, ch.root + iv, 0.35));
+}
+// each note has its own cue sound, so the chart can be heard as well as seen
+function playCue(g, n, t){
+  const ch = PROG[Math.floor(n.t / 4) % 4], tT = g.startAt + n.t * g.spb;
+  if (n.type === 'hold') { pad(t, tT, ch.root); pluck(tT, ch.root + 24, 1.1); }
+  else if (n.type === 'up') pluck(tT, ch.root + 12 + ch.tri[n.seg % 3]);
+  else if (n.type === 'down') { pluck(tT, ch.root, 1.2); noise(tT, 0.25, 'lowpass', 3000, 0.12, bus, 400); }
+  else if (n.type === 'right') { pluck(tT, ch.root + 19, 1.1); pluck(tT, ch.root + 24, 0.8); }
+  else if (n.type === 'left') { pluck(tT, ch.root + 16, 1.1); pluck(tT, ch.root + 28, 0.6); }
+}
+function schedule(){
+  const g = G; if (!g || g.demo || !g.running || !actx || g.stage.song) return;
+  const ahead = actx.currentTime + 0.15, q = g.spb / 4;
+  for (;;) { const t = g.startAt + g.step * q; if (t > ahead) break; if (t > actx.currentTime - 0.05) playStep(g, g.step, t); g.step++; }
+  for (;;) {
+    const n = g.notes[g.cueIdx]; if (!n) break;
+    const t = g.startAt + n.s * g.spb;
+    if (t > ahead) break; playCue(g, n, t); g.cueIdx++;
+  }
+}
+setInterval(schedule, 25);
+
+/* ---------------- chart ----------------
+   A seg is one rooftop: you land at L, may slide under a pipe at `slide`,
+   take off at T (tap or hold) and fly `air` beats. A 'wall' seg flies to the
+   face of a taller building instead; → at T+air kicks up to its roof (KICK beats). */
+function addNote(g, seg, n){
+  n.seg = seg.idx; n.done = false;
+  g.typeCount[n.type] = (g.typeCount[n.type] || 0) + 1; n.nth = g.typeCount[n.type];
+  g.notes.push(n);
+  if (seg.shaft && (n.type === 'left' || n.type === 'right')) seg.shaft.kicks.find(k => k.t === n.t).note = n;
+  else if (n.type === 'down') seg.dn = n; else if (n.type === 'right') seg.kn = n; else seg.jn = n;
+}
+function pushSeg(g, seg){
+  g.segs.push(seg);
+  if (seg.goal) { seg.jn = { type:'up', done:true }; return; }
+  if (seg.slide != null) addNote(g, seg, { type:'down', s:seg.slide, t:seg.slide });
+  if (seg.kind === 'hold') addNote(g, seg, { type:'hold', s:seg.T - seg.h, t:seg.T });
+  else addNote(g, seg, { type:'up', s:seg.T, t:seg.T });
+  if (seg.kind === 'wall') addNote(g, seg, { type:'right', s:seg.T + seg.air, t:seg.T + seg.air });
+  if (seg.shaft) for (const k of seg.shaft.kicks) addNote(g, seg, { type:k.dir, s:k.t, t:k.t });
+}
+function genSeg(g){
+  const r = g.rng, segs = g.segs, prev = segs[segs.length - 1], n = segs.length;
+  const L = prev.shaft ? prev.shaft.land : prev.T + prev.air + (prev.kind === 'wall' ? KICK : 0);
+  const ox = prev.shaft ? prev.shaft.oxNext : prev.ox || 0, faceX = prev.shaft ? prev.shaft.xR : null;
+  const song = g.stage.song, e = song ? songEnergy(song, L) : 0;
+  const d = song ? clamp((e - 0.55) / 0.35, 0, 1) * song.maxD : Math.min(1, g.stage.diff + n / 140);
+  const calm = song && e < 0.56;
+  const drop = song ? song.drops.find(D => D - L >= 1.5 && D - L <= 3.5) : undefined;
+  const preDrop = song ? song.drops.find(D => D - L > 3.5 && D - L <= 6.5) : undefined;
+  let y, face = null;
+  if (prev.kind === 'wall') { y = prev.y - WALL_H; face = prev.T + prev.air; }
+  else if (prev.shaft) y = prev.shaft.landY;
+  else {
+    let dy = prev.air <= 0.5 ? pick(r, [-30, 0, 30]) : prev.kind === 'hold' ? pick(r, [-110, -60, 0, 60]) : pick(r, [-70, -40, 0, 0, 40, 70]);
+    if (prev.y < -60 && prev.air > 0.5) dy = Math.abs(dy) + 40;   // drift back down after climbs so walls keep appearing
+    y = clamp(prev.y + dy, -200, 170);
+  }
+  if (song && L >= song.endBeat - 6) {   // finish line: one long rooftop to run out the song on
+    pushSeg(g, { L, T: L + 400, y, kind:'tap', h:0, air:1, idx:n, slide:null, face, faceX, ox, goal:true });
+    return;
+  }
+  const pWall = (!calm && n >= 6 && prev.kind === 'tap' && y >= -30) ? 0.12 + 0.1 * d : 0;
+  const pHold = (!calm && n >= 4 && prev.kind !== 'hold') ? 0.13 + 0.15 * d : 0;
+  const pShaft = (!calm && n >= 8 && prev.kind === 'tap' && !prev.shaft && y >= -120 && d >= 0.1) ? 0.07 + 0.08 * d : 0;
+  const roll = r();
+  let kind = 'tap', h = 0, ground, air;
+  if (drop === undefined && preDrop === undefined && r() < pShaft) {
+    const K = d > 0.45 && r() < 0.4 ? 4 : 2, T = L + pick(r, [1, 1, 2]);
+    const seg = { L, T, y, kind:'shaft', h:0, air:1, idx:n, slide:null, face, faceX, ox };
+    makeShaft(seg, Array.from({ length:K }, (_, i) => T + 1 + i));
+    pushSeg(g, seg);
+    return;
+  }
+  if (drop !== undefined) {
+    kind = 'hold'; ground = drop - L; h = Math.min(2, Math.floor((ground - 0.5) * 2) / 2); air = 2;
+    pushSeg(g, { L, T: drop, y, kind, h, air, idx: n, slide: null, face, faceX, ox });
+    return;
+  }
+  if (preDrop !== undefined) {   // set up a plain jump so the next rooftop starts 2 beats before the drop
+    pushSeg(g, { L, T: L + preDrop - L - 3, y, kind:'tap', h:0, air:1, idx:n, slide:null, face, faceX, ox });
+    return;
+  }
+  if (calm) { ground = pick(r, [1, 2, 2]); air = 1; }
+  else if (roll < pWall) { kind = 'wall'; ground = pick(r, [1, 1, 2]); air = 1; }
+  else if (roll < pWall + pHold) {
+    kind = 'hold'; h = (d > 0.4 && r() < 0.5) ? 2 : 1;
+    ground = h + pick(r, [0.5, 1, 1]); air = pick(r, d > 0.5 ? [2, 2, 3] : [2]);
+  } else {
+    ground = d < 0.25 ? pick(r, [1, 1, 1, 2]) : pick(r, [0.5, 1, 1, 1, 1.5, 2]);
+    air = d < 0.2 ? 1 : pick(r, d > 0.55 ? [0.5, 0.5, 1, 1, 1.5] : [0.5, 1, 1, 1, 1.5]);
+    if (ground === 0.5 && air === 0.5 && d < 0.7) air = 1;
+  }
+  let slide = null;
+  if (!calm && n >= 3 && r() < 0.18 + 0.17 * d) {
+    const off = pick(r, [0.5, 1]);
+    slide = L + off;
+    ground = Math.max(ground, off + 1.5 + h);   // first action after the pipe is ≥ 1.5 beats later
+  }
+  pushSeg(g, { L, T: L + ground, y, kind, h, air, idx: n, slide, face, faceX, ox });
+}
+function ensureChart(g, b){ if (g.stage.chart) return; while (g.segs[g.segs.length - 1].T < b + 40) genSeg(g); }
+
+/* ANALYZER START */
+// Song analysis for imported tracks: spectral-flux onsets → tempo (autocorrelation + comb fit) → first-beat phase → per-bar loudness
+function fftMag(re, im){
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++) { let bit = n >> 1; for (; j & bit; bit >>= 1) j ^= bit; j ^= bit; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, wr = Math.cos(ang), wi = Math.sin(ang), half = len >> 1;
+    for (let i = 0; i < n; i += len) { let cr = 1, ci = 0;
+      for (let k = 0; k < half; k++) { const a = i + k, b = a + half, xr = re[b] * cr - im[b] * ci, xi = re[b] * ci + im[b] * cr;
+        re[b] = re[a] - xr; im[b] = im[a] - xi; re[a] += xr; im[a] += xi; const t = cr * wr - ci * wi; ci = cr * wi + ci * wr; cr = t; } }
+  }
+}
+const ONSET_LAG = 0.07;
+function analyzeBuffer(buf){
+  const sr = buf.sampleRate, c0 = buf.getChannelData(0), c1 = buf.numberOfChannels > 1 ? buf.getChannelData(1) : c0;
+  const dec = Math.max(1, Math.round(sr / 11025)), sr2 = sr / dec, len = Math.floor(c0.length / dec);
+  const x = new Float32Array(len);
+  for (let i = 0; i < len; i++) { let s = 0; for (let j = i * dec, e = j + dec; j < e; j++) s += c0[j] + c1[j]; x[i] = s / (2 * dec); }
+  const N = 1024, hop = 64, frames = Math.max(0, Math.floor((len - N) / hop)), fps = sr2 / hop;
+  const win = new Float32Array(N); for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+  const re = new Float32Array(N), im = new Float32Array(N), prev = new Float32Array(N / 2 + 1);
+  const flux = new Float32Array(frames), rms = new Float32Array(frames);
+  for (let f = 0; f < frames; f++) {
+    const o = f * hop; let e = 0;
+    for (let i = 0; i < N; i++) { const v = x[o + i]; re[i] = v * win[i]; im[i] = 0; e += v * v; }
+    rms[f] = Math.sqrt(e / N);
+    fftMag(re, im);
+    let s = 0;
+    for (let k = 0; k <= N / 2; k++) { const m = Math.log1p(100 * Math.hypot(re[k], im[k])); if (f && m > prev[k]) s += m - prev[k]; prev[k] = m; }
+    flux[f] = s;
+  }
+  // remove a 1 s moving average so only the attacks remain
+  const w = Math.round(fps), cs = new Float64Array(frames + 1);
+  for (let i = 0; i < frames; i++) cs[i + 1] = cs[i] + flux[i];
+  const on = new Float32Array(frames);
+  for (let i = 0; i < frames; i++) { const a = Math.max(0, i - (w >> 1)), b = Math.min(frames, i + (w >> 1)); on[i] = Math.max(0, flux[i] - (cs[b] - cs[a]) / (b - a)); }
+  const at = t => { const k = t * fps, i = k | 0; return i + 1 < frames ? on[i] * (1 - (k - i)) + on[i + 1] * (k - i) : 0; };
+  const dur = c0.length / sr;
+  const comb = (bpm, ph) => { let s = 0; const spb = 60 / bpm; for (let t = ph; t < dur - 0.1; t += spb) s += at(t); return s; };
+  const bestPhase = (bpm, step) => { const spb = 60 / bpm; let bp = 0, bs = -1; for (let p = 0; p < spb; p += step) { const s = comb(bpm, p); if (s > bs) { bs = s; bp = p; } } return [bp, bs]; };
+  // coarse tempo: autocorrelation at 1, 2 and 4 beat lags
+  const ac = lag => { const L = Math.round(lag); let s = 0; for (let i = 0; i + L < frames; i += 2) s += on[i] * on[i + L]; return s; };
+  let coarse = 120, cbest = -1;
+  for (let bpm = 70; bpm <= 200; bpm += 0.5) { const lag = 60 / bpm * fps; const v = ac(lag) + ac(2 * lag) + ac(4 * lag); if (v > cbest) { cbest = v; coarse = bpm; } }
+  // fine tempo + phase by comb fit
+  let bpm = coarse, phase = 0, best = -1;
+  for (let b = coarse - 1.5; b <= coarse + 1.5; b += 0.05) { const [p, s] = bestPhase(b, 0.004); if (s > best) { best = s; bpm = b; phase = p; } }
+  for (let b = bpm - 0.06; b <= bpm + 0.06; b += 0.01) { const [p, s] = bestPhase(b, 0.002); if (s > best) { best = s; bpm = b; phase = p; } }
+  // octave check: per-beat comb strength at double / half tempo decides between e.g. 87 and 174
+  const perBeat = b => bestPhase(b, 0.002)[1] / (dur * b / 60);
+  const here = perBeat(bpm);
+  if (bpm * 2 <= 200 && perBeat(bpm * 2) > here * (bpm < 100 ? 0.6 : 0.85)) bpm *= 2;
+  else if (bpm > 180 && perBeat(bpm / 2) > here * 0.9) bpm /= 2;
+  bpm = Math.round(bpm * 100) / 100;
+  // spectral flux peaks ~70 ms before the audible attack (1024-sample window), so shift onto the attack
+  phase = (bestPhase(bpm, 0.001)[0] + ONSET_LAG) % (60 / bpm);
+  return { bpm, phase, dur, rmsEnv: rms, fps };
+}
+// per-bar loudness (0..1) for a given grid, used to shape the auto chart
+function barsFor(an, bpm, phase){
+  const spb = 60 / bpm, w = Math.round(an.fps), r = an.rmsEnv, n = r.length, cs = new Float64Array(n + 1);
+  for (let i = 0; i < n; i++) cs[i + 1] = cs[i] + r[i];
+  const sm = t => { const i = Math.round(t * an.fps), a = clamp(i - (w >> 1), 0, n), b = clamp(i + (w >> 1), 0, n); return b > a ? (cs[b] - cs[a]) / (b - a) : 0; };
+  const e = []; for (let t = phase; t < an.dur; t += spb) e.push(sm(t));
+  const mx = Math.max(1e-6, ...e), bars = [];
+  for (let i = 0; i < e.length; i += 4) { const s = e.slice(i, i + 4); bars.push(Math.round(s.reduce((a, v) => a + v, 0) / s.length / mx * 100) / 100); }
+  return bars;
+}
+
+/* ---------------- game ---------------- */
+let G = null;
+function makeGame(stage, demo){
+  const g = {
+    stage, demo, spb: 60 / stage.bpm, segs: [], notes: [], typeCount: {}, noteLo: 0,
+    cur:0, mode:'ground', arc:null, x:0, y:0, vx:0, vy:0, beat:0, chargeAt:0, slideEnd:0, fallT:0, kickQueued:false,
+    score:0, combo:0, maxCombo:0, cleared:0, counts:{ PERFECT:0, GREAT:0, GOOD:0, STUMBLE:0 },
+    parts:[], pops:[], camX:-VW * 0.28, camY:-VH * 0.58, shake:0, running:true, step:0, cueIdx:0,
+    rng: mulberry32(stage.seed != null ? stage.seed : demo ? 20261016 : (Math.random() * 1e9) | 0), ended:false, cause:''
+  };
+  if (stage.chart) { const c = buildChart(stage.chart, stage.seed); g.segs = c.segs; g.notes = c.notes; }
+  else { pushSeg(g, { L:-60, T:8, y:0, kind:'tap', h:0, air:1, idx:0, slide:null, face:null, ox:0 }); ensureChart(g, 0); }
+  g.ox = 0;
+  g.firstBeat = g.notes.length ? g.notes[0].s : 8;
+  return g;
+}
+const wBeats = g => WIN.good / g.spb;
+function grade(sec){ const a = Math.abs(sec); return a <= WIN.perfect ? 'PERFECT' : a <= WIN.great ? 'GREAT' : 'GOOD'; }
+const GRADE_COLOR = { PERFECT:C.amber, GREAT:C.teal, GOOD:C.lilac };
+function pop(g, text, color){ g.pops.push({ text, color, x:g.x, y:g.y - 70, t:0 }); }
+function judge(g, gr, weight){
+  if (g.demo) return;
+  g.counts[gr]++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
+  g.score += Math.round({ PERFECT:300, GREAT:200, GOOD:100 }[gr] * weight * (1 + Math.min(g.combo, 100) / 50));
+  pop(g, gr, GRADE_COLOR[gr]);
+}
+function stumble(g, label){ if (g.demo) return; g.combo = 0; g.counts.STUMBLE++; pop(g, label, C.danger); sfx('stumble'); }
+function dust(g, n, color, spread, dir){
+  for (let i = 0; i < n; i++) g.parts.push({ x:g.x + (Math.random() - .5) * 16, y:g.y - 2, vx:((dir || 0) + (Math.random() - .7)) * spread, vy:-Math.random() * spread * .6, life:0, max:.35 + Math.random() * .3, color, size:2 + Math.random() * 2.5 });
+}
+function jump(g, seg){
+  const nxt = g.segs[g.cur + 1];
+  seg.jn.done = true; g.mode = 'air';
+  if (seg.kind === 'wall') g.arc = { kind:'towall', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y + CONTACT, peak:30 };
+  else if (seg.shaft) { const k = seg.shaft.kicks[0]; g.ki = 0; g.arc = { kind:'toshaft', b0:seg.T, dur:k.t - seg.T, x0:seg.T * PPB - seg.ox, x1:k.x, y0:seg.y, y1:k.y, peak:34 }; }
+  else g.arc = { kind:'jump', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y, peak:35 + 40 * seg.air, to:g.cur + 1, flip:seg.kind === 'hold' };
+  sfx(seg.kind === 'hold' ? 'big' : 'jump');
+  dust(g, seg.kind === 'hold' ? 16 : 7, seg.kind === 'hold' ? C.teal : C.ink, seg.kind === 'hold' ? 240 : 120);
+}
+function wallKick(g){
+  const seg = g.segs[g.cur];
+  g.kickQueued = false; g.mode = 'air';
+  g.arc = { kind:'jump', b0:seg.kn.t, dur:KICK, y0:g.y, y1:g.segs[g.cur + 1].y, peak:42, to:g.cur + 1, kick:true };
+  sfx('kick'); dust(g, 10, C.lime, 160, -1);
+}
+function shaftKick(g){
+  const seg = g.segs[g.cur], ks = seg.shaft.kicks, k = ks[g.ki];
+  g.kickQueued = false; g.mode = 'air';
+  if (g.ki < ks.length - 1) { const nk = ks[g.ki + 1]; g.arc = { kind:'shaftkick', b0:k.t, dur:nk.t - k.t, x0:k.x, x1:nk.x, y0:k.y, y1:nk.y, peak:46, kick:true }; g.ki++; }
+  else g.arc = { kind:'jump', b0:k.t, dur:seg.shaft.land - k.t, x0:k.x, x1:seg.shaft.landX, y0:k.y, y1:g.segs[g.cur + 1].y, peak:40, to:g.cur + 1, kick:true };
+  sfx('kick'); dust(g, 9, NOTE_COLOR[k.dir], 150, k.wall === 'R' ? 1 : -1);
+}
+const inShaftFlight = g => g.segs[g.cur].shaft && (g.mode === 'cling' || (g.mode === 'air' && (g.arc.kind === 'toshaft' || g.arc.kind === 'shaftkick')));
+function hop(g, b, dur){
+  const seg = g.segs[g.cur];
+  g.mode = 'air'; g.arc = { kind:'hop', b0:b, dur, y0:seg.y, y1:seg.y, peak:26 };
+}
+function startSlide(g, b, end){ g.mode = 'slide'; g.slideEnd = end; sfx('slide'); dust(g, 8, C.lilac, 140, 1); }
+function stopMusic(g){ if (!g.demo && bus) { bus.gain.cancelScheduledValues(actx.currentTime); bus.gain.setTargetAtTime(0.0001, actx.currentTime, 0.18); } }
+function fall(g, label, cause){
+  if (g.mode === 'fall' || g.mode === 'crash') return;
+  if (g.mode === 'air' && g.arc) {
+    const a = g.arc, c = 2 * (Math.min(a.y0, a.y1) - a.peak) - (a.y0 + a.y1) / 2;
+    g.vy = 2 * (a.y1 - c) / (a.dur * g.spb);
+  } else g.vy = 0;
+  g.vx = g.mode === 'wall' ? -60 : g.mode === 'cling' ? (g.segs[g.cur].shaft.kicks[g.ki].wall === 'R' ? -50 : 50)
+    : g.mode === 'air' && g.arc && g.arc.x0 != null ? (g.arc.x1 - g.arc.x0) / (g.arc.dur * g.spb) : PPB / g.spb;
+  g.mode = 'fall'; g.fallT = 0; g.combo = 0; g.cause = cause || '谷へ落下';
+  if (label) pop(g, label, C.danger);
+  sfx('fail'); stopMusic(g);
+}
+function crash(g){
+  g.mode = 'crash'; g.vx = -160; g.vy = -380; g.fallT = 0; g.crashY = g.segs[g.cur].y; g.combo = 0; g.cause = '配管に激突';
+  pop(g, 'CRASH', C.danger); g.shake = 10; sfx('crash'); stopMusic(g);
+}
+function bez(a, u){ const top = Math.min(a.y0, a.y1) - a.peak, c = 2 * top - (a.y0 + a.y1) / 2; return (1 - u) * (1 - u) * a.y0 + 2 * u * (1 - u) * c + u * u * a.y1; }
+
+function press(dir){
+  const g = G; if (!g || g.demo || g.auto || !g.running || paused) return;
+  pressAt(g, dir, g.clock());
+}
+function pressAt(g, dir, b){
+  const seg = g.segs[g.cur], wB = wBeats(g);
+  // pressed in the air just before landing: if it is within the next roof's note window, keep it for the landing
+  if ((dir === 'up' || dir === 'down') && g.mode === 'air' && g.arc.kind === 'jump') {
+    const nx = g.segs[g.arc.to];
+    const tgt = dir === 'down' ? (nx.dn && !nx.dn.done ? nx.dn.t : null) : nx.goal ? null : nx.kind === 'hold' ? nx.T - nx.h : nx.T;
+    if (tgt != null && Math.abs(b - tgt) * g.spb <= WIN.good) g.buffer = { dir, b };
+    return;
+  }
+  if (g.mode === 'slide' && b >= g.slideEnd - 0.25 && dir !== 'down') g.mode = 'ground';   // the tail of a slide can be cut into the next move
+  if (dir === 'up') {
+    if (g.mode !== 'ground') return;
+    if (seg.kind !== 'hold') {
+      const sec = (b - seg.T) * g.spb;
+      if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); jump(g, seg); }
+      else if (b < seg.T && b > seg.T - 1) { stumble(g, 'EARLY'); hop(g, b, 0.5); }
+    } else {
+      const S = seg.T - seg.h;
+      if (b >= S - wB && b < seg.T - wB) {
+        g.mode = 'charge'; g.chargeAt = b;
+        const sec = (b - S) * g.spb;
+        if (Math.abs(sec) <= WIN.good) judge(g, grade(sec), 0.5); else pop(g, 'LATE', C.muted);
+      } else if (b >= seg.T - wB) { stumble(g, 'NO CHARGE'); hop(g, b, 0.6 * seg.air); }
+      else if (b > S - 1) { stumble(g, 'EARLY'); hop(g, b, 0.5); }
+    }
+  } else if (dir === 'down') {
+    if (g.mode !== 'ground') return;
+    const dn = seg.dn;
+    if (dn && !dn.done) {
+      const sec = (b - dn.t) * g.spb;
+      if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
+      if (b < dn.t && b > dn.t - 1) { stumble(g, 'EARLY'); startSlide(g, b, b + 0.45); return; }
+    }
+    startSlide(g, b, b + 0.5);   // free slide: harmless unless it eats a jump
+  } else if ((dir === 'left' || dir === 'right') && inShaftFlight(g)) {
+    const k = seg.shaft.kicks[g.ki];
+    if (k.note.done || dir !== k.dir) return;
+    const sec = (b - k.t) * g.spb;
+    if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); k.note.done = true; if (g.mode === 'cling') shaftKick(g); else g.kickQueued = true; }
+    else if (sec < 0) fall(g, 'EARLY', '壁ジャンプが早すぎた');
+  } else if (dir === 'right') {
+    const kn = seg.kn;
+    if (!kn || kn.done) return;
+    const towardWall = g.mode === 'wall' || (g.mode === 'air' && g.arc.kind === 'towall');
+    if (!towardWall) return;
+    const sec = (b - kn.t) * g.spb;
+    if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); kn.done = true; if (g.mode === 'wall') wallKick(g); else g.kickQueued = true; }
+    else if (sec < 0) fall(g, 'EARLY', '空中で壁キックが早すぎた');
+  }
+}
+function release(){
+  const g = G; if (!g || g.demo || g.auto || paused) return;
+  if (g.buffer && g.buffer.dir === 'up') { g.buffer.rel = g.clock(); return; }
+  if (g.mode === 'charge') releaseAt(g, g.clock());
+}
+function releaseAt(g, b){
+  const seg = g.segs[g.cur], sec = (b - seg.T) * g.spb;
+  if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); jump(g, seg); g.shake = 5; }
+  else if (sec < 0) { stumble(g, 'TOO SHORT'); hop(g, b, 0.6 * seg.air); }
+}
+
+function autoplay(g, b, seg){
+  const dn = seg.dn, kn = seg.kn;
+  if (g.mode === 'ground') {
+    if (dn && !dn.done && b >= dn.t) { dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
+    if (seg.kind === 'hold') { if (b >= seg.T - seg.h) { g.mode = 'charge'; g.chargeAt = b; } }
+    else if (b >= seg.T) jump(g, seg);
+  } else if (g.mode === 'charge' && b >= seg.T) jump(g, seg);
+  else if (inShaftFlight(g)) { const k = seg.shaft.kicks[g.ki]; if (!k.note.done && b >= k.t) { k.note.done = true; if (g.mode === 'cling') shaftKick(g); else g.kickQueued = true; } }
+  else if (kn && !kn.done && b >= kn.t && (g.mode === 'wall' || (g.mode === 'air' && g.arc.kind === 'towall'))) {
+    kn.done = true; if (g.mode === 'wall') wallKick(g); else g.kickQueued = true;
+  }
+}
+
+function finish(g){
+  if (g.ended) return;
+  if (g.demo) { G = makeGame(g.stage, true); G.clock = demoClock(G); return; }
+  gameOver(g);
+}
+function update(g, dt){
+  const b = g.clock(); g.beat = b;
+  ensureChart(g, b);
+  const wB = wBeats(g);
+  const seg = g.segs[g.cur];
+  if (g.demo || g.auto) autoplay(g, b, seg);
+  const alive = g.mode !== 'fall' && g.mode !== 'crash';
+  if (alive && seg.dn && !seg.dn.done && b > seg.dn.t + wB) crash(g);
+  if (g.mode === 'ground' || g.mode === 'charge' || g.mode === 'slide') {
+    g.x = b * PPB - g.ox; g.y = seg.y;
+    if (g.mode === 'slide') { if (b >= g.slideEnd) g.mode = 'ground'; else if (Math.random() < 0.5) dust(g, 1, C.muted, 80, -1); }
+    if (b > seg.T + wB) fall(g, 'MISS', seg.kind === 'hold' ? '溜めジャンプを離せなかった' : 'ジャンプし損ねた');
+  } else if (g.mode === 'air') {
+    const a = g.arc, u = (b - a.b0) / a.dur;
+    g.x = a.x0 != null && u > 0 ? a.x0 + (a.x1 - a.x0) * Math.min(1, u) : b * PPB - g.ox;
+    if (u <= 0) g.y = a.y0;
+    else if (u < 1) g.y = bez(a, u);
+    else if (a.kind === 'jump') {
+      g.cur = a.to; g.mode = 'ground'; g.y = a.y1; g.cleared++; g.ox = g.segs[g.cur].ox || 0;
+      if (g.buffer) { const bf = g.buffer; g.buffer = null; pressAt(g, bf.dir, bf.b); if (bf.rel != null && g.mode === 'charge') releaseAt(g, bf.rel); }
+      sfx('land'); dust(g, a.flip || a.kick ? 14 : 6, C.ink, a.flip ? 200 : 90);
+      if (a.flip) g.shake = 6;
+    } else if (a.kind === 'towall') {
+      g.y = a.y1;
+      if (g.kickQueued) wallKick(g); else { g.mode = 'wall'; dust(g, 6, C.lime, 80, -1); }
+    } else if (a.kind === 'toshaft' || a.kind === 'shaftkick') {
+      g.x = a.x1; g.y = a.y1;
+      if (g.kickQueued) shaftKick(g); else g.mode = 'cling';
+    } else {
+      if (b <= seg.T + wB) { g.mode = 'ground'; g.y = a.y1; }
+      else fall(g, '', '踏み切りが合わなかった');
+    }
+  } else if (g.mode === 'wall') {
+    g.x = Math.min(b * PPB, seg.kn.t * PPB) - g.ox; g.y += 50 * dt;
+    if (b > seg.kn.t + wB) fall(g, 'MISS', '壁キックが遅れた');
+  } else if (g.mode === 'cling') {
+    const k = seg.shaft.kicks[g.ki]; g.x = k.x; g.y += 40 * dt;
+    if (b > k.t + wB) fall(g, 'MISS', '壁ジャンプが遅れた');
+  } else if (g.mode === 'fall') {
+    g.vx *= Math.exp(-dt * 7); g.vy += 2400 * dt; g.x += g.vx * dt; g.y += g.vy * dt; g.fallT += dt;
+    if (g.fallT > 1.0) finish(g);
+  } else if (g.mode === 'crash') {
+    g.vx *= Math.exp(-dt * 3); g.vy += 2400 * dt; g.x += g.vx * dt; g.y = Math.min(g.y + g.vy * dt, g.crashY);
+    if (g.y >= g.crashY) g.vy = 0;
+    g.fallT += dt; if (g.fallT > 1.1) finish(g);
+  }
+  if (G !== g) return;
+  if (g.stage.song && !g.ended && g.mode === 'ground' && seg.goal && b >= Math.max(seg.L + 2, g.stage.song.endBeat)) { g.cleared++; g.clear = true; gameOver(g); }
+  // camera: follows the runner; inside a wall-jump shaft it holds on the shaft and eases in/out
+  const shaftNow = !!(seg.shaft && (inShaftFlight(g) || (g.mode === 'air' && g.arc.x0 != null)));
+  if (shaftNow !== !!g.wasShaft) { g.camEase = 0.6; g.wasShaft = shaftNow; }
+  const camT = shaftNow ? (seg.shaft.xL + seg.shaft.xR) / 2 - VW * 0.4 : g.x - VW * 0.28;
+  g.camEase = Math.max(0, (g.camEase || 0) - dt);
+  g.camX = g.camEase > 0 ? g.camX + (camT - g.camX) * Math.min(1, dt * 9) : camT;
+  if (g.mode !== 'fall' && g.mode !== 'crash') {
+    let ty;
+    if (g.mode === 'air') { const a = g.arc, u = clamp((b - a.b0) / a.dur, 0, 1); ty = a.y0 + (a.y1 - a.y0) * u * u * (3 - 2 * u); }
+    else if (g.mode === 'wall' || g.mode === 'cling') ty = g.y;
+    else ty = g.segs[g.cur].y;
+    g.camY += (ty - VH * 0.58 - g.camY) * Math.min(1, dt * 4);
+  }
+  g.shake = Math.max(0, g.shake - dt * 30);
+  for (const p of g.parts) { p.life += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
+  g.parts = g.parts.filter(p => p.life < p.max);
+  for (const p of g.pops) p.t += dt;
+  g.pops = g.pops.filter(p => p.t < 0.7);
+  while (g.noteLo < g.notes.length && (g.notes[g.noteLo].done || g.notes[g.noteLo].t < b - 2)) g.noteLo++;
+}
+
+/* ---------------- drawing ---------------- */
+function drawSky(g){
+  const pulse = REDUCED ? 0 : Math.exp(-frac(g.beat) * 6);
+  const gr = ctx.createLinearGradient(0, 0, 0, H);
+  gr.addColorStop(0, '#150b29'); gr.addColorStop(0.45, '#3d1b4d'); gr.addColorStop(0.72, '#b2464b'); gr.addColorStop(0.86, '#f08a46');
+  ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,244,230,.55)';
+  for (let i = 0; i < 60; i++) { const sx = ((hash(i, 1, 9) * W * 1.3 - g.camX * ZOOM * 0.02) % W + W) % W, sy = hash(i, 2, 9) * H * 0.4; ctx.fillRect(sx, sy, 1.4, 1.4); }
+  const sr = Math.min(W, H) * 0.2, sx = W * 0.68, sy = H * 0.7;
+  const sg = ctx.createRadialGradient(sx, sy, sr * 0.2, sx, sy, sr * (2.2 + pulse * 0.15));
+  sg.addColorStop(0, 'rgba(255,190,110,.55)'); sg.addColorStop(1, 'rgba(255,140,80,0)');
+  ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#ffc77a'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+  const layers = [
+    { par:0.12, w:64, min:70, max:230, col:'#4a2150', base:0.8, win:0 },
+    { par:0.35, w:104, min:120, max:360, col:'#26133a', base:0.86, win:0.12 },
+  ];
+  for (const L of layers) {
+    const off = g.camX * ZOOM * L.par, k0 = Math.floor(off / L.w) - 1, baseY = H * L.base - g.camY * ZOOM * L.par * 0.25 - 60;
+    for (let k = k0; k < k0 + W / L.w + 3; k++) {
+      const x = k * L.w - off, h = (L.min + hash(k, 3, L.w) * (L.max - L.min)) * ZOOM, bw = L.w * (0.7 + hash(k, 4, L.w) * 0.3);
+      ctx.fillStyle = L.col; ctx.fillRect(x, baseY - h, bw, H - baseY + h);
+      if (L.win) {
+        for (let wy = baseY - h + 12; wy < H; wy += 16) for (let wx = x + 8; wx < x + bw - 8; wx += 14)
+          if (hash(k, wx | 0, wy | 0) < L.win) { ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(wx, wy, 5, 7); }
+      }
+    }
+  }
+}
+
+function drawPipe(x1, x2, top, done){
+  // a duct hung across the roof on two thin legs; standing height hits it, a slide clears it
+  ctx.fillStyle = '#3a2d4a'; ctx.fillRect(x1 + 4, top - 52, 3, 52); ctx.fillRect(x2 - 7, top - 52, 3, 52);
+  ctx.fillStyle = '#4b3a5e'; ctx.fillRect(x1, top - 56, x2 - x1, 24);
+  ctx.save(); ctx.beginPath(); ctx.rect(x1, top - 56, x2 - x1, 24); ctx.clip();
+  ctx.fillStyle = done ? 'rgba(199,166,255,.25)' : C.lilac;
+  for (let sx = x1 - 24; sx < x2; sx += 18) { ctx.beginPath(); ctx.moveTo(sx, top - 32); ctx.lineTo(sx + 9, top - 32); ctx.lineTo(sx + 21, top - 56); ctx.lineTo(sx + 12, top - 56); ctx.fill(); }
+  ctx.restore();
+}
+function drawPlatforms(g){
+  const pulse = REDUCED ? 0.3 : Math.exp(-frac(g.beat) * 5);
+  for (let i = Math.max(0, g.cur - 3); i < g.segs.length; i++) {
+    const s = g.segs[i], o = s.ox || 0;
+    const x1 = s.faceX != null ? s.faceX - g.camX : (s.face != null ? s.face * PPB : s.L * PPB - 10) - o - g.camX, x2 = s.T * PPB + 10 - o - g.camX, top = s.y - g.camY;
+    if (x1 > VW + 20) break;
+    if (x2 < -20) continue;
+    ctx.fillStyle = C.roof; ctx.fillRect(x1, top, x2 - x1, VH - top + 40);
+    for (let wx = x1 + 14, c = 0; wx < x2 - 14; wx += 24, c++) for (let wy = top + 30, r = 0; wy < VH + 20; wy += 34, r++) {
+      const h = hash(i, c, r);
+      if (h < 0.22) { ctx.fillStyle = h < 0.06 ? 'rgba(95,225,217,.28)' : 'rgba(255,181,71,.22)'; ctx.fillRect(wx, wy, 9, 14); }
+    }
+    ctx.fillStyle = '#2a2036'; ctx.fillRect(x1, top, x2 - x1, 6);
+    const edge = NOTE_COLOR[s.jn.type];
+    ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * pulse; ctx.fillStyle = edge; ctx.shadowColor = edge; ctx.shadowBlur = 10 + 10 * pulse;
+    ctx.fillRect(x1, top - 1, x2 - x1, 2); ctx.restore();
+    // wall face to kick off: lime chevrons where the runner touches
+    if (s.face != null && s.faceX == null) {
+      ctx.fillStyle = C.lime; ctx.globalAlpha = 0.5 + 0.5 * pulse;
+      for (let k = 0; k < 3; k++) { const cy = top + CONTACT - 26 + k * 14; ctx.beginPath(); ctx.moveTo(x1 + 3, cy); ctx.lineTo(x1 + 11, cy - 6); ctx.lineTo(x1 + 11, cy - 2); ctx.lineTo(x1 + 3, cy + 4); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(182,240,106,.5)'; ctx.fillRect(x1, top, 2, VH - top + 40);
+    }
+    if (s.slide == null && x2 - x1 > 140 && hash(i, 7, 7) < 0.6) {
+      const px = x1 + 30 + hash(i, 8, 8) * (x2 - x1 - 120);
+      ctx.fillStyle = '#211a2c';
+      if (hash(i, 9, 9) < 0.5) ctx.fillRect(px, top - 16, 26, 16);
+      else { ctx.fillRect(px, top - 40, 3, 40); ctx.fillStyle = C.danger; ctx.globalAlpha = 0.5 + 0.5 * pulse; ctx.fillRect(px - 1, top - 44, 5, 4); ctx.globalAlpha = 1; }
+    }
+    if (s.slide != null) drawPipe(s.slide * PPB - o - g.camX, (s.slide + 0.5) * PPB - o - g.camX, top, s.dn.done);
+    if (s.kind === 'hold') {
+      const zs = (s.T - s.h) * PPB - o - g.camX, ze = s.T * PPB - o - g.camX;
+      ctx.fillStyle = 'rgba(95,225,217,.16)'; ctx.fillRect(zs, top - 1, ze - zs, -10);
+      ctx.fillStyle = C.teal; ctx.beginPath(); ctx.moveTo(zs, top - 18); ctx.lineTo(zs + 6, top - 10); ctx.lineTo(zs - 6, top - 10); ctx.fill();
+    }
+    const tx = s.T * PPB - o - g.camX;
+    ctx.fillStyle = edge; ctx.fillRect(tx - 1, top - 14, 2, 14);
+  }
+  // wall-jump shafts go on top so their kick marks sit over the building faces
+  for (let i = Math.max(0, g.cur - 3); i < g.segs.length; i++) { const s = g.segs[i]; if (s.shaft) drawShaft(g, s, pulse); }
+}
+function drawShaft(g, s, pulse){
+  const sh = s.shaft, xL = sh.xL - g.camX, xR = sh.xR - g.camX;
+  if (xL > VW + 100 || xR < -100) return;
+  const top = sh.landY - 40 - g.camY, bottom = s.y - 110 - g.camY, roof = s.y - g.camY;
+  // billboard on stilts: the left wall
+  ctx.fillStyle = '#2a2036'; ctx.fillRect(xL - 66, bottom, 4, roof - bottom); ctx.fillRect(xL - 14, bottom, 4, roof - bottom);
+  ctx.fillStyle = '#1b1426'; ctx.fillRect(xL - 76, top, 76, bottom - top);
+  ctx.fillStyle = 'rgba(255,138,216,.12)'; ctx.fillRect(xL - 70, top + 8, 64, bottom - top - 16);
+  ctx.fillStyle = C.pink; ctx.globalAlpha = 0.6 + 0.4 * pulse; ctx.fillRect(xL - 1, top, 2, bottom - top); ctx.globalAlpha = 1;
+  // a key mark at every contact: lime → on the building, pink ← on the billboard
+  for (const k of sh.kicks) {
+    const cx = k.wall === 'R' ? xR : xL, cy = k.y - 30 - g.camY, col = NOTE_COLOR[k.dir], sgn = k.dir === 'right' ? 1 : -1;
+    ctx.globalAlpha = k.note && k.note.done ? 0.25 : 0.55 + 0.45 * pulse; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(cx, cy - 9); ctx.lineTo(cx + sgn * 10, cy); ctx.lineTo(cx, cy + 9); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+const seg2 = (x, y, ang, len) => [x + Math.sin(ang) * len, y + Math.cos(ang) * len];
+function drawRunner(g){
+  const b = g.beat, px = g.x - g.camX, py = g.y - g.camY, seg = g.segs[g.cur];
+  ctx.save(); ctx.translate(px, py);
+  const facingLeft = (g.mode === 'cling' && seg.shaft.kicks[g.ki].wall === 'L') || (g.mode === 'air' && g.arc.x0 != null && g.arc.x1 < g.arc.x0);
+  if (facingLeft) ctx.scale(-1, 1);
+  let hipY = -25, lean = 0.28, legs, arms, rot = 0;
+  const t = performance.now() / 1000, ph = b * Math.PI * 2;
+  if (g.mode === 'ground') {
+    const s = Math.sin(ph), c = Math.cos(ph);
+    hipY = -25 - Math.abs(s) * 2;
+    legs = [[0.9 * s, 0.3 + 1.1 * Math.max(0, c)], [-0.9 * s, 0.3 + 1.1 * Math.max(0, -c)]];
+    arms = [[-0.9 * s, 1.3], [0.9 * s, 1.3]];
+  } else if (g.mode === 'slide') {
+    hipY = -7; lean = -1.05;
+    legs = [[1.45, 0.05], [1.25, 0.5]];
+    arms = [[-2.3, 0.2], [-2.0, 0.3]];
+  } else if (g.mode === 'charge') {
+    const k = clamp((b - g.chargeAt) / Math.max(0.5, seg.T - g.chargeAt), 0, 1);
+    hipY = -25 + 9 * k; lean = 0.3 + 0.45 * k;
+    legs = [[0.5 + 0.7 * k, 0.6 + 1.5 * k], [0.2 + 0.5 * k, 0.6 + 1.6 * k]];
+    arms = [[-0.6 - 0.8 * k, -0.4], [-0.4 - 0.8 * k, -0.3]];
+    if (!REDUCED) ctx.translate((Math.random() - .5) * 2 * k, 0);
+    ctx.strokeStyle = C.teal; ctx.globalAlpha = 0.35 + 0.4 * k; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -24, 16 + 22 * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+  } else if (g.mode === 'wall' || g.mode === 'cling') {
+    hipY = -26; lean = 0.15;
+    legs = [[1.5, 1.9], [1.1, 1.6]];
+    arms = [[2.9, 0.2], [2.6, 0.3]];
+  } else if (g.mode === 'air') {
+    const a = g.arc, u = clamp((b - a.b0) / a.dur, 0, 1);
+    hipY = -26; lean = 0.4;
+    const tuck = Math.sin(u * Math.PI);
+    legs = [[0.6 + 0.8 * tuck, 0.4 + 1.8 * tuck], [0.2 + 0.8 * tuck, 0.5 + 1.9 * tuck]];
+    arms = [[2.2 - tuck * 0.6, 0.8], [1.8 - tuck * 0.6, 0.9]];
+    if (a.kick) { arms = [[2.8, 0.2], [2.5, 0.3]]; legs = [[0.3 + tuck, 0.6 + tuck], [-0.4, 0.3]]; }
+    if (a.flip && !REDUCED) rot = (u * u * (3 - 2 * u)) * Math.PI * 2;
+  } else {
+    legs = [[0.6 + Math.sin(t * 18), 0.8], [-0.4 + Math.sin(t * 18 + 2), 0.9]];
+    arms = [[Math.PI - 0.6 + Math.sin(t * 22), 0.4], [Math.PI + 0.6 + Math.sin(t * 22 + 1), 0.4]];
+    rot = g.mode === 'crash' ? -Math.min(1.45, g.fallT * 6) : -0.4;
+  }
+  if (rot) { ctx.translate(0, -24); ctx.rotate(rot); ctx.translate(0, 24); }
+  const hip = [0, hipY], sh = [Math.sin(lean) * 20, hipY - Math.cos(lean) * 20], head = [sh[0] + Math.sin(lean) * 9, sh[1] - Math.cos(lean) * 9];
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
+  const arm = (o, a, col) => { const e = seg2(o[0], o[1], a[0], 10); const h = seg2(e[0], e[1], a[0] + a[1], 10); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(h[0], h[1]); ctx.stroke(); };
+  ctx.lineWidth = 4.5;
+  limb(hip, legs[1], '#9d8bb3'); arm(sh, arms[1], '#9d8bb3');
+  ctx.strokeStyle = C.amber; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(sh[0], sh[1] - 2);
+  for (let i = 1; i <= 5; i++) ctx.lineTo(sh[0] - i * 7, sh[1] - 2 + i * 1.2 + Math.sin(t * 14 + i) * 2.5 * (g.mode === 'charge' ? 0.4 : 1));
+  ctx.stroke();
+  ctx.lineWidth = 5; ctx.strokeStyle = C.ink; ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(sh[0], sh[1]); ctx.stroke();
+  ctx.lineWidth = 4.5; limb(hip, legs[0], C.ink); arm(sh, arms[0], C.ink);
+  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(head[0], head[1], 6.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function drawWorld(g){
+  ctx.save();
+  const sh = g.shake && !REDUCED ? (Math.random() - .5) * g.shake : 0;
+  ctx.scale(ZOOM, ZOOM); ctx.translate(0, sh);
+  if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); drawRunner(g); }
+  for (const p of g.parts) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.color; ctx.fillRect(p.x - g.camX, p.y - g.camY, p.size, p.size); }
+  ctx.globalAlpha = 1; ctx.textAlign = 'center';
+  for (const p of g.pops) {
+    const k = p.t / 0.7; ctx.globalAlpha = 1 - k * k;
+    ctx.font = '400 20px "Dela Gothic One", sans-serif'; ctx.fillStyle = p.color;
+    ctx.fillText(p.text, p.x - g.camX + 10, p.y - g.camY - k * 30);
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function arrow(x, y, dir, s, col){
+  ctx.save(); ctx.translate(x, y); ctx.rotate({ up:-Math.PI / 2, down:Math.PI / 2, right:0, left:Math.PI }[dir]);
+  ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(s * 0.15, -s * 0.8); ctx.lineTo(s, 0); ctx.lineTo(s * 0.15, s * 0.8); ctx.stroke();
+  ctx.restore();
+}
+function drawLane(g){
+  const b = g.beat, lx = 16, lw = W - 32, lh = 46, ly = H - lh - 14;
+  const jx = VW * 0.28 * ZOOM, scale = PPB * ZOOM, cy = ly + lh / 2;
+  ctx.save();
+  roundRect(lx, ly, lw, lh, 23); ctx.fillStyle = 'rgba(12,7,22,.78)'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,244,230,.12)'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.clip();
+  for (let k = Math.floor(b - jx / scale); k < b + W / scale + 1; k++) {
+    const x = jx + (k - b) * scale; ctx.fillStyle = k % 4 === 0 ? 'rgba(255,244,230,.22)' : 'rgba(255,244,230,.08)'; ctx.fillRect(x, ly + 8, 1, lh - 16);
+  }
+  for (let i = g.noteLo; i < g.notes.length; i++) {
+    const n = g.notes[i]; if (n.done) continue;
+    const xe = jx + (n.t - b) * scale; if (jx + (n.s - b) * scale > W + 20) break;
+    const col = NOTE_COLOR[n.type];
+    if (n.type === 'hold') {
+      let xs = jx + (n.s - b) * scale;
+      if (n.seg === g.cur && g.mode === 'charge') xs = Math.max(xs, jx);
+      roundRect(xs - 12, cy - 12, xe - xs + 24, 24, 12); ctx.fillStyle = 'rgba(95,225,217,.28)'; ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, cy, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(xe, cy, 12, 0, Math.PI * 2); ctx.fill();
+      arrow(xs, cy, 'up', 4.5, C.dark); arrow(xe, cy, 'up', 6, C.dark);
+    } else {
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xe, cy, 12, 0, Math.PI * 2); ctx.fill();
+      arrow(xe, cy, n.type, 6, C.dark);
+    }
+  }
+  ctx.restore();
+  const pulse = REDUCED ? 0 : Math.exp(-frac(b) * 6);
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(jx, cy, 15 + pulse * 4, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawHUD(g){
+  if (g.demo) return;
+  const b = g.beat, top = 18;
+  if (g.auto) { ctx.textAlign = 'right'; ctx.fillStyle = C.teal; ctx.font = '700 12px "JetBrains Mono", monospace'; ctx.fillText('AUTO PLAY', W - 68, 36); }
+  ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = '700 11px "JetBrains Mono", monospace';
+  ctx.fillText('SCORE', 16, top + 10);
+  ctx.fillStyle = C.ink; ctx.font = '700 28px "JetBrains Mono", monospace'; ctx.fillText(String(g.score).padStart(7, '0'), 16, top + 40);
+  ctx.fillStyle = C.muted; ctx.font = '500 12px "Zen Kaku Gothic New", sans-serif';
+  ctx.fillText(`${g.stage.jp} · ${Math.round(g.stage.bpm)} BPM · 屋上 ${g.cleared}`, 16, top + 60);
+  if (g.stage.song) {   // song progress
+    const p = clamp(b / g.stage.song.endBeat, 0, 1);
+    ctx.fillStyle = 'rgba(255,244,230,.15)'; ctx.fillRect(16, 6, W - 32, 3);
+    ctx.fillStyle = C.amber; ctx.fillRect(16, 6, (W - 32) * p, 3);
+  }
+  ctx.textAlign = 'center';
+  if (g.combo >= 2) {
+    ctx.fillStyle = C.amber; ctx.font = '400 36px "Dela Gothic One", sans-serif';
+    ctx.fillText(g.combo, W / 2, top + 36); ctx.fillStyle = C.muted; ctx.font = '700 11px "JetBrains Mono", monospace'; ctx.fillText('COMBO', W / 2, top + 52);
+  }
+  const cd = b - (g.firstBeat - 4);   // 3-2-1-GO over the four beats before the first note
+  if (cd >= 0 && cd < 4) {
+    const n = Math.floor(cd) + 4;
+    { ctx.fillStyle = n === 7 ? C.amber : C.ink; ctx.font = `400 ${Math.min(120, W * 0.2)}px "Dela Gothic One", sans-serif`; ctx.fillText(n === 7 ? 'GO' : String(7 - n), W / 2, H * 0.42); }
+  }
+  // first two of each note type get a one-line explanation as they approach
+  if (g.mode === 'fall' || g.mode === 'crash') return;
+  for (let i = g.noteLo; i < g.notes.length; i++) {
+    const n = g.notes[i]; if (n.s - b > 4) break;
+    if (n.done || n.nth > 2) continue;
+    ctx.fillStyle = NOTE_COLOR[n.type]; ctx.font = '700 16px "Zen Kaku Gothic New", sans-serif';
+    ctx.fillText(g.segs[n.seg] && g.segs[n.seg].shaft && n.type !== 'up' ? HINTS.shaft : HINTS[n.type], W / 2, top + 96);
+    break;
+  }
+}
+
+/* ---------------- flow ---------------- */
+const $ = id => document.getElementById(id);
+let paused = false, overAt = 0, lastStage = STAGES[0];
+const demoClock = g => { const t0 = performance.now() / 1000; return () => (performance.now() / 1000 - t0) / g.spb; };
+
+let lastOpts = {};
+function startGame(stage, opts){
+  opts = opts || {};
+  initAudio(); actx.resume();
+  if (bus) { try { bus.disconnect(); } catch(e){} }
+  bus = actx.createGain(); bus.gain.value = 0.7; bus.connect(comp);
+  stopSong();
+  G = makeGame(stage, false);
+  if (stage.song) {
+    const t0 = actx.currentTime + 0.3;
+    songSrc = actx.createBufferSource(); songSrc.buffer = stage.song.buffer; songSrc.connect(bus); songSrc.start(t0);
+    G.startAt = t0 + stage.song.phaseLive;         // game beat 0 = the song's first beat
+  } else G.startAt = actx.currentTime + 0.25;
+  G.clock = () => (actx.currentTime - G.startAt - latency()) / G.spb;
+  G.auto = !!opts.auto; G.from = opts.from;
+  lastStage = stage; lastOpts = opts; paused = false;
+  $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = false; $('pad').hidden = !TOUCH;
+  cv.focus();
+}
+function gameOver(g){
+  g.ended = true; g.running = false;
+  const key = 'rb-best-' + g.stage.id, prev = store.get(key, 0), isNew = !g.auto && g.score > prev;
+  if (isNew) store.set(key, g.score);
+  $('overStage').textContent = `${g.stage.jp} · ${Math.round(g.stage.bpm)} BPM`;
+  $('overTitle').textContent = g.clear ? '完走' : g.mode === 'crash' ? '激突' : '踏み外した';
+  $('overCause').textContent = g.clear ? '曲の最後まで一度も落ちずに走り切った' : g.stage.song ? `${g.cause}（曲の ${Math.round(clamp(g.beat / g.stage.song.endBeat, 0, 1) * 100)}% 地点）` : g.cause;
+  $('sScore').textContent = g.score.toLocaleString();
+  $('sJumps').textContent = g.cleared;
+  $('sCombo').textContent = g.maxCombo;
+  $('sBest').textContent = Math.max(prev, g.score).toLocaleString();
+  $('newBest').hidden = !isNew || g.score === 0;
+  $('sGrades').innerHTML = Object.entries(g.counts).map(([k, v]) => `<div class="stat"><b style="font-size:18px">${v}</b><span>${k}</span></div>`).join('');
+  if (g.auto) $('overTitle').textContent = g.clear ? 'オートで完走' : 'オートでも失敗';
+  $('toMenu').textContent = g.from === 'editor' ? 'エディタに戻る' : 'ステージ選択';
+  $('over').hidden = false; $('pauseBtn').hidden = true; $('pad').hidden = true; overAt = performance.now();
+  $('retry').focus();
+  renderStages();
+}
+let songSrc = null;
+function stopSong(){ if (songSrc) { try { songSrc.stop(); } catch(e){} songSrc = null; } }
+// onset-flux phase search around `center`; only the difference from phaseRef is used
+function measurePhase(buf, bpm, center){
+  const sr = buf.sampleRate, a = buf.getChannelData(0), b = buf.numberOfChannels > 1 ? buf.getChannelData(1) : a;
+  const hop = 128, n = Math.floor(a.length / hop), env = new Float32Array(n);
+  let prev = 0;
+  for (let i = 0; i < n; i++) { let s = 0; for (let j = i * hop, e = j + hop; j < e; j++) { const x = a[j] + b[j], d = x - prev; prev = x; s += d * d; } env[i] = Math.log(1e-6 + s); }
+  const flux = new Float32Array(n); for (let i = 1; i < n; i++) flux[i] = Math.max(0, env[i] - env[i - 1]);
+  const fps = sr / hop, spb = 60 / bpm; let best = center, bs = -1;
+  for (let d = -0.06; d <= 0.06; d += 0.001) { let s = 0; for (let t = center + d; t * fps < n - 1; t += spb) { const k = t * fps, i = k | 0, f = k - i; s += flux[i] * (1 - f) + flux[i + 1] * f; } if (s > bs) { bs = s; best = center + d; } }
+  return best;
+}
+async function loadSong(song){
+  song.state = 'loading'; renderStages();
+  try {
+    initAudio();   // created suspended; decoding works before the first click, playback starts on it
+    const buf = await (await fetch(song.file)).arrayBuffer();
+    song.buffer = await new Promise((ok, ng) => { const p = actx.decodeAudioData(buf, ok, ng); if (p && p.catch) p.catch(ng); });
+    let shift = 0;
+    try { shift = clamp(measurePhase(song.buffer, song.bpm, song.phaseRef) - song.phaseRef, -0.06, 0.06); } catch(e) {}
+    song.phaseLive = song.phase + shift;
+    song.state = 'ready';
+  } catch(e) { song.state = 'error'; }
+  renderStages();
+}
+function toMenu(){
+  stopSong();
+  if (bus) { try { bus.disconnect(); } catch(e){} bus = null; }
+  if (actx && actx.state === 'suspended') actx.resume();
+  paused = false;
+  G = makeGame(STAGES.find(s => s.id === 'neon'), true); G.clock = demoClock(G);
+  $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = true; $('pad').hidden = true; $('menu').hidden = false;
+  renderStages(); renderMine();
+}
+function setPause(on){
+  if (!G || G.demo || !G.running) return;
+  paused = on;
+  if (on) actx.suspend(); else actx.resume();
+  $('pause').hidden = !on; $('pauseBtn').hidden = on; $('pad').hidden = on || !TOUCH;
+  if (on) $('resume').focus(); else cv.focus();
+}
+function renderStages(){
+  $('stages').innerHTML = STAGES.map((s, i) => {
+    if (s.song && s.song.state === 'error') return '';   // song file not shipped with this copy (e.g. the public site): hide its stage
+    const wait = s.song && s.song.state !== 'ready';
+    const note = !s.song ? '' : s.song.state === 'error' ? '曲を読み込めませんでした' : wait ? '曲を読み込み中…' : '';
+    return `<button class="stage${s.song ? ' song' : ''}" data-i="${i}"${wait ? ' disabled' : ''}><span class="bpm">${Math.round(s.bpm)}<small>BPM</small></span><span class="name">${s.jp}</span><span class="desc">${note || s.desc}</span><span class="best">BEST ${store.get('rb-best-' + s.id, 0).toLocaleString()}</span></button>`;
+  }).join('');
+}
+$('stages').addEventListener('click', e => { const b = e.target.closest('.stage'); if (b && !b.disabled) startGame(STAGES[+b.dataset.i]); });
+$('retry').addEventListener('click', () => startGame(lastStage, lastOpts));
+const leaveGame = () => lastOpts.from === 'editor' ? backToEditor() : toMenu();
+$('toMenu').addEventListener('click', leaveGame);
+$('resume').addEventListener('click', () => setPause(false));
+$('quit').addEventListener('click', leaveGame);
+$('pauseBtn').addEventListener('click', () => setPause(true));
+const off = $('offset'), offOut = $('offsetOut');
+const showOff = () => offOut.textContent = `${offsetMs > 0 ? '+' : ''}${offsetMs} ms`;
+off.value = offsetMs; showOff();
+off.addEventListener('input', () => { offsetMs = +off.value; showOff(); store.set('rb-offset', offsetMs); });
+// tap-along calibration: median (tap − click) is the total delay of this device's output + reaction habit
+const CAL = { on:false, t0:0, spb:0.6, taps:[], result:null, timer:0 };
+function calDots(){ $('calDots').innerHTML = Array.from({ length:20 }, (_, k) => `<i class="${k < 4 ? 'prep' : ''}${k >= 4 && k - 4 < CAL.taps.length ? ' on' : ''}"></i>`).join(''); }
+function calOpen(){ $('cal').hidden = false; $('calApply').hidden = true; CAL.taps = []; calDots(); $('calStart').focus(); }
+function calStart(){
+  initAudio(); actx.resume(); clearTimeout(CAL.timer);
+  if (document.activeElement) document.activeElement.blur();
+  CAL.t0 = actx.currentTime + 0.4; CAL.taps = []; CAL.on = true; CAL.result = null; $('calApply').hidden = true; calDots();
+  for (let k = 0; k < 20; k++) tone(CAL.t0 + k * CAL.spb, 'square', k < 4 ? 660 : 1320, 0.05, 0.22, comp);
+  $('calMsg').textContent = '4回鳴ったあと、音に合わせて押してください…';
+  CAL.timer = setTimeout(calFinish, (0.4 + 20 * CAL.spb + 0.5) * 1000);
+}
+function calTap(){
+  if (!CAL.on) return;
+  const t = actx.currentTime, k = Math.round((t - CAL.t0) / CAL.spb);
+  if (k < 4 || k > 19) return;
+  CAL.taps.push(t - (CAL.t0 + k * CAL.spb)); calDots();
+}
+function calFinish(){
+  CAL.on = false;
+  const d = CAL.taps.filter(x => Math.abs(x) < 0.3).sort((a, b) => a - b);
+  if (d.length < 8) { $('calMsg').textContent = `押せたのが ${d.length} 回だけだったので測れませんでした。もう一度「開始」を押してください。`; return; }
+  const med = d[d.length >> 1], spread = (d[Math.floor(d.length * 0.75)] - d[Math.floor(d.length * 0.25)]) / 2;
+  const auto = actx.outputLatency || actx.baseLatency || 0;
+  CAL.result = Math.round(clamp((med - auto) * 1000, -100, 400) / 5) * 5;
+  $('calMsg').textContent = `クリック音から平均 ${Math.abs(Math.round(med * 1000))} ms ${med >= 0 ? '遅れて' : '早く'}押していました（ばらつき ±${Math.round(spread * 1000)} ms）。判定オフセットを ${CAL.result > 0 ? '+' : ''}${CAL.result} ms にすると合います。` + (spread > 0.05 ? ' ばらつきが大きいので、もう一度測るとより正確です。' : '');
+  $('calApply').hidden = false; $('calApply').focus();
+}
+$('calBtn').addEventListener('click', calOpen);
+$('calStart').addEventListener('click', calStart);
+$('calApply').addEventListener('click', () => { offsetMs = CAL.result; off.value = offsetMs; showOff(); store.set('rb-offset', offsetMs); $('cal').hidden = true; });
+$('calClose').addEventListener('click', () => { CAL.on = false; clearTimeout(CAL.timer); $('cal').hidden = true; });
+$('cal').addEventListener('pointerdown', e => { if (CAL.on && !e.target.closest('button')) { e.preventDefault(); calTap(); } });
+
+const KEYMAP = { ArrowUp:'up', KeyW:'up', Space:'up', ArrowDown:'down', KeyS:'down', ArrowRight:'right', KeyD:'right', ArrowLeft:'left', KeyA:'left' };
+window.addEventListener('keydown', e => {
+  if (!$('cal').hidden) { if (CAL.on && (e.code === 'Space' || KEYMAP[e.code])) { e.preventDefault(); if (!e.repeat) calTap(); } return; }
+  if (ED.open) return;
+  if (e.code === 'Escape' || e.code === 'KeyP') { if (G && !G.demo && G.running) setPause(!paused); return; }
+  if (!$('over').hidden) { if (performance.now() - overAt > 600 && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); startGame(lastStage, lastOpts); } return; }
+  const dir = KEYMAP[e.code];
+  if (!dir || !G || G.demo || paused) return;
+  e.preventDefault();
+  if (!e.repeat) press(dir);
+});
+window.addEventListener('keyup', e => { if (KEYMAP[e.code] === 'up') release(); });
+cv.addEventListener('pointerdown', e => { if (G && !G.demo) { e.preventDefault(); cv.setPointerCapture(e.pointerId); press('up'); } });
+cv.addEventListener('pointerup', release);
+cv.addEventListener('pointercancel', release);
+for (const btn of document.querySelectorAll('#pad button')) {
+  const dir = btn.dataset.dir;
+  btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.setPointerCapture(e.pointerId); btn.classList.add('on'); press(dir); });
+  const up = () => { btn.classList.remove('on'); if (dir === 'up') release(); };
+  btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
+}
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
+
+/* ---------------- charts from a note list ----------------
+   A hand-made chart is just notes on a half-beat grid: {type:'up'|'hold'|'down'|'right', s, t}.
+   buildChart turns them into rooftops. Notes that can't be played (too close, → without a ↑ before it…)
+   are left out of the game and reported back so the editor can mark them. */
+const floorQ = v => Math.floor(v * 4 + 1e-6) / 4;
+function stepY(r, y, prevKind, prevAir){
+  if (prevKind === 'wall') return y - WALL_H;
+  let dy = prevAir <= 0.5 ? pick(r, [-30, 0, 30]) : prevKind === 'hold' ? pick(r, [-110, -60, 0, 60]) : pick(r, [-70, -40, 0, 0, 40, 70]);
+  if (y < -60 && prevAir > 0.5) dy = Math.abs(dy) + 40;
+  return clamp(y + dy, -400, 170);
+}
+function buildChart(input, seed){
+  const notes = input.slice().sort((a, b) => a.s - b.s || a.t - b.t);
+  const r = mulberry32(seed || 1), g = { segs:[], notes:[], typeCount:{} }, errors = [];
+  const err = (n, msg) => errors.push({ n, msg });
+  const used = new Set();
+  const nextAfter = i => { for (let j = i + 1; j < notes.length; j++) if (!used.has(j)) return j; return -1; };
+  let L = -60, y = 0, face = null, prevAir = 1, prevKind = 'tap', slide = null, idx = 0, ox = 0, prevShaft = null;
+  for (let i = 0; i < notes.length; i++) {
+    if (used.has(i)) continue;
+    const n = notes[i];
+    if (n.type === 'down') {
+      if (slide) { err(n, '1つの屋上に置ける↓は1つまで'); continue; }
+      if (n.t < L + 0.25 - 1e-6) { err(n, '着地から0.25拍以上あとに置く'); continue; }
+      slide = n; continue;
+    }
+    if (n.type === 'right') { err(n, '→の0.25〜1.5拍前に↑（壁へのジャンプ）が必要'); continue; }
+    if (n.type === 'left') { err(n, '←は壁ジャンプの左の壁用。↑ → のあとに置く'); continue; }
+    const minS = slide ? slide.t + 0.75 : L + 0.25;
+    if (n.s < minS - 1e-6) { err(n, slide ? '↓のあとは0.75拍以上空ける' : '着地から0.25拍以上あとに置く'); continue; }
+    if (n.type === 'hold' && n.t - n.s < 0.5 - 1e-6) { err(n, '溜めは0.5拍以上'); continue; }
+    const T = n.t;
+    let kind = n.type === 'hold' ? 'hold' : 'tap', air, kn = null, j = nextAfter(i), shaftTimes = null;
+    const gapOk = (a, b) => b - a >= 0.25 - 1e-6 && b - a <= 1.5 + 1e-6;
+    const j2 = j >= 0 ? nextAfter(j) : -1;
+    if (kind === 'tap' && j >= 0 && notes[j].type === 'right' && gapOk(T, notes[j].t) && j2 >= 0 && notes[j2].type === 'left' && gapOk(notes[j].t, notes[j2].t)) {
+      // wall-jump chain: → ← → ← …, ending on ← (kick off the left wall onto the roof)
+      const chain = [j]; let prevT = notes[j].t, want = 'left';
+      for (let q = j2; q >= 0; q = nextAfter(q)) {
+        const m = notes[q];
+        if (m.type !== want || !gapOk(prevT, m.t)) break;
+        chain.push(q); prevT = m.t; want = want === 'right' ? 'left' : 'right';
+      }
+      chain.forEach(q => used.add(q));
+      if (chain.length % 2) { const last = chain.pop(); err(notes[last], '壁ジャンプは ← で終える（→ と ← を同じ数に）'); }
+      kind = 'shaft'; shaftTimes = chain.map(q => notes[q].t);
+    }
+    if (shaftTimes) air = 1;
+    else if (kind === 'tap' && j >= 0 && notes[j].type === 'right' && gapOk(T, notes[j].t)) {
+      kind = 'wall'; kn = notes[j]; used.add(j); air = kn.t - T;
+    } else {
+      const N = j >= 0 ? notes[j].s : T + 4;
+      const gap = N - T;   // leave ~0.5 beat of roof before the next note when there is room, else 0.25
+      air = kind === 'hold' ? clamp(floorQ(gap - 0.5), 1, 2.5) : gap >= 1 ? clamp(floorQ(gap - 0.5), 0.5, gap >= 3 ? 1.5 : 1) : Math.max(0.25, floorQ(gap - 0.25));
+    }
+    if (idx > 0) y = prevShaft ? prevShaft.landY : stepY(r, y, prevKind, prevAir);
+    const seg = { L, T, y, kind, h: kind === 'hold' ? n.t - n.s : 0, air, idx, slide: slide ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox };
+    if (shaftTimes) makeShaft(seg, shaftTimes);
+    g.segs.push(seg);
+    if (slide) addNote(g, seg, { type:'down', s:slide.t, t:slide.t });
+    addNote(g, seg, { type:n.type, s:n.s, t:n.t });
+    if (kn) addNote(g, seg, { type:'right', s:kn.t, t:kn.t });
+    if (seg.shaft) for (const k of seg.shaft.kicks) addNote(g, seg, { type:k.dir, s:k.t, t:k.t });
+    face = kind === 'wall' ? T + air : null;
+    L = seg.shaft ? seg.shaft.land : T + air + (kind === 'wall' ? KICK : 0); prevAir = air; prevKind = kind; slide = null; idx++;
+    if (seg.shaft) ox = seg.shaft.oxNext;
+    prevShaft = seg.shaft || null;
+  }
+  if (idx > 0) y = prevShaft ? prevShaft.landY : stepY(r, y, prevKind, prevAir);
+  const goal = { L, T: L + 400, y, kind:'tap', h:0, air:1, idx, slide: slide ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox, goal:true, jn:{ type:'up', done:true } };
+  g.segs.push(goal);
+  if (slide) addNote(g, goal, { type:'down', s:slide.t, t:slide.t });
+  return { segs:g.segs, notes:g.notes, errors };
+}
+
+/* ---------------- my songs (kept in this browser) ---------------- */
+const DB = {
+  p: null,
+  open(){ return this.p || (this.p = new Promise((ok, ng) => { const r = indexedDB.open('rooftop-beat', 1); r.onupgradeneeded = () => r.result.createObjectStore('songs', { keyPath:'id' }); r.onsuccess = () => ok(r.result); r.onerror = () => ng(r.error); })); },
+  async run(mode, fn){ const db = await this.open(); return new Promise((ok, ng) => { const t = db.transaction('songs', mode), req = fn(t.objectStore('songs')); t.oncomplete = () => ok(req.result); t.onerror = () => ng(t.error); }); },
+};
+let mine = [], dbOk = true;
+const decoded = new Map();     // song id → AudioBuffer
+async function dbAll(){
+  try { mine = await DB.run('readonly', s => s.getAll()); } catch(e) { dbOk = false; }
+  mine.sort((a, b) => b.created - a.created);
+  for (const m of mine) if ((m.v || 1) < 2) { m.notes = migrateKicks(m.notes); m.v = 2; dbPut(m); }
+}
+async function dbPut(rec){ if (!mine.includes(rec)) mine.unshift(rec); try { await DB.run('readwrite', s => s.put(rec)); } catch(e) { dbOk = false; } }
+async function dbDel(rec){ mine = mine.filter(m => m !== rec); decoded.delete(rec.id); try { await DB.run('readwrite', s => s.delete(rec.id)); } catch(e) {} }
+function migrateKicks(list){
+  const ns = list.map(n => ({ ...n })).sort((a, b) => a.s - b.s);
+  for (let i = 0; i < ns.length - 1; i++) {
+    if (ns[i].type !== 'up' || ns[i + 1].type !== 'left') continue;
+    let want = 'left';
+    for (let j = i + 1; j < ns.length && ns[j].type === want; j++) { ns[j].type = want === 'left' ? 'right' : 'left'; want = want === 'left' ? 'right' : 'left'; }
+  }
+  return ns;
+}
+const decode = ab => new Promise((ok, ng) => { const p = actx.decodeAudioData(ab, ok, ng); if (p && p.catch) p.catch(ng); });
+async function bufferOf(rec){ initAudio(); if (!decoded.has(rec.id)) decoded.set(rec.id, await decode(rec.audio.slice(0))); return decoded.get(rec.id); }
+const DIFFS = [{ v:0.35, jp:'やさしい' }, { v:0.6, jp:'ふつう' }, { v:0.85, jp:'むずかしい' }];
+function songOf(rec, buffer){
+  const bars = barsFor(rec.an, rec.bpm, rec.phase);
+  const s = { bpm:rec.bpm, phase:rec.phase, phaseLive:rec.phase, maxD:rec.diff, bars, buffer, state:'ready',
+    endBeat: Math.max(8, Math.floor((rec.an.dur - rec.phase) * rec.bpm / 60) - 2) };
+  s.drops = bars.map((e, i) => (e < 0.5 && bars[i + 1] > 0.65) ? (i + 1) * 4 : null).filter(v => v != null);
+  return s;
+}
+const stageOf = (rec, buffer) => ({ id:'my-' + rec.id, jp:rec.title, bpm:rec.bpm, diff:0, song:songOf(rec, buffer), chart:rec.notes, seed:rec.seed, custom:rec });
+function autoNotes(rec, buffer){
+  const song = songOf(rec, buffer);
+  const g = makeGame({ id:'gen', song, bpm:rec.bpm, diff:0, seed:rec.seed }, true);
+  ensureChart(g, song.endBeat);
+  return g.notes.filter(n => n.t < song.endBeat).map(n => ({ type:n.type, s:n.s, t:n.t }));
+}
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+function renderMine(msg){
+  const box = $('mineList');
+  $('mineNote').textContent = msg || (!dbOk ? 'このブラウザでは保存できないため、ページを閉じると曲と譜面は消えます。' : mine.length ? '曲と譜面はこのブラウザにだけ保存されます。' : '');
+  box.innerHTML = mine.map((m, i) => `<div class="mysong"><div class="meta"><b>${esc(m.title)}</b><span>${Math.round(m.bpm)} BPM · ${fmtTime(m.an.dur)} · ノーツ ${m.notes.length} · ${(DIFFS.find(d => d.v === m.diff) || DIFFS[1]).jp} · BEST ${store.get('rb-best-my-' + m.id, 0).toLocaleString()}</span></div>
+    <div class="row"><button class="mini primary" data-act="play" data-i="${i}">遊ぶ</button><button class="mini" data-act="edit" data-i="${i}">譜面を編集</button><button class="mini danger" data-act="del" data-i="${i}">削除</button></div></div>`).join('');
+}
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+$('mineList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const rec = mine[+b.dataset.i]; if (!rec) return;
+  if (b.dataset.act === 'del') {
+    if (b.dataset.armed) { await dbDel(rec); renderMine(); return; }
+    b.dataset.armed = '1'; b.textContent = 'もう一度押すと削除'; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = '削除'; } }, 3000);
+    return;
+  }
+  b.disabled = true; const label = b.textContent; b.textContent = '準備中…';
+  try {
+    const buffer = await bufferOf(rec);
+    if (b.dataset.act === 'play') startGame(stageOf(rec, buffer));
+    else openEditor(rec, buffer);
+  } catch(err) { renderMine('この曲を読み込めませんでした。削除して入れ直してください。'); }
+  b.disabled = false; b.textContent = label;
+});
+$('fileIn').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = '';
+  if (!f) return;
+  renderMine(`「${f.name}」を解析中… 長い曲だと数秒かかります`);
+  await new Promise(r => setTimeout(r, 30));
+  try {
+    initAudio();
+    const ab = await f.arrayBuffer();
+    const buffer = await decode(ab.slice(0));
+    await new Promise(r => setTimeout(r, 30));
+    const an = analyzeBuffer(buffer);
+    const rec = { id: Date.now().toString(36) + Math.floor(Math.random() * 1e4), title: f.name.replace(/\.[^.]+$/, ''), bpm: an.bpm, phase: Math.round(an.phase * 1000) / 1000,
+      diff: 0.6, seed: (Math.random() * 1e9) | 0, v: 2, an: { rmsEnv: an.rmsEnv, fps: an.fps, dur: an.dur }, audio: ab, created: Date.now(), notes: [] };
+    decoded.set(rec.id, buffer);
+    rec.notes = autoNotes(rec, buffer);
+    await dbPut(rec);
+    renderMine();
+    openEditor(rec, buffer, `解析しました：${rec.bpm} BPM、最初の拍 ${Math.round(rec.phase * 1000)} ms。自動で譜面を作ったので、再生して確かめてから直してください。`);
+  } catch(err) { renderMine('このファイルは読み込めませんでした。mp3 / wav / m4a などの音声ファイルを選んでください。'); }
+});
+
+/* ---------------- chart editor ---------------- */
+const ROWS = [ { type:'up', label:'↑ ジャンプ' }, { type:'hold', label:'↑ 溜め' }, { type:'down', label:'↓ スライド' }, { type:'right', label:'→ 壁キック' }, { type:'left', label:'← 壁ジャンプ' } ];
+const ED = { snap:2, open:false, rec:null, buffer:null, notes:[], bad:new Map(), errors:[], bars:[], scroll:-2, ppb:64, cursor:0, playing:false, src:null, bus:null,
+  t0:0, b0:0, hist:[], redo:[], drag:null, hover:null, upAt:null, schedBeat:0, schedNote:0, saveTimer:0, taps:[], W:0, H:0 };
+const ecv = $('edCanvas'), ectx = ecv.getContext('2d');
+const GUT = 108, RULER = 22, STRIP = 34;
+const spbE = () => 60 / ED.rec.bpm;
+const snapB = v => Math.round(v * ED.snap) / ED.snap;
+const edEnd = () => (ED.rec.an.dur - ED.rec.phase) / spbE();
+const where = b => { const bar = Math.floor(b / 4) + 1, k = b - (bar - 1) * 4, f = Math.round((k % 1) * 4); return `${bar}小節 ${Math.floor(k) + 1}拍${['', '+1/4', '裏', '+3/4'][f]}`; };
+function edResize(){
+  const r = ecv.getBoundingClientRect(); ED.W = r.width; ED.H = r.height;
+  ecv.width = Math.round(r.width * DPR); ecv.height = Math.round(r.height * DPR);
+}
+function openEditor(rec, buffer, msg){
+  stopSong(); G = null;
+  Object.assign(ED, { open:true, rec, buffer, notes: rec.notes.map(n => ({ ...n })), hist:[], redo:[], cursor:0, scroll:-2 });
+  $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = true; $('pad').hidden = true;
+  $('editor').hidden = false;
+  $('edTitle').value = rec.title; $('edBpm').value = rec.bpm; $('edPhase').value = Math.round(rec.phase * 1000);
+  $('edDiff').value = String(rec.diff);
+  try { ED.snap = +localStorage.getItem('rb-snap') || 2; } catch(e) {} $('edSnap').value = String(ED.snap);
+  edResize(); edRecalc(); edStatus(msg || '');
+}
+function closeEditor(){
+  edStop(); edSave(true);
+  ED.open = false; $('editor').hidden = true;
+  toMenu();
+}
+function edStatus(t){ $('edStatus').textContent = t; }
+function edRecalc(){
+  ED.bars = barsFor(ED.rec.an, ED.rec.bpm, ED.rec.phase);
+  const c = buildChart(ED.notes, ED.rec.seed);
+  ED.errors = c.errors; ED.bad = new Map(c.errors.map(e => [e.n, e.msg]));
+  const nBad = ED.errors.length;
+  $('edCount').textContent = `ノーツ ${ED.notes.length}` + (nBad ? `（置けない ${nBad}）` : '');
+  $('edErrors').innerHTML = ED.errors.slice(0, 12).map((e, i) => `<button data-i="${i}">${where(e.n.s)}：${e.msg}</button>`).join('') + (nBad > 12 ? `<span>ほか ${nBad - 12} 件</span>` : '');
+  $('edErrors').hidden = !nBad;
+}
+function edChange(fn){
+  ED.hist.push(JSON.stringify(ED.notes)); if (ED.hist.length > 200) ED.hist.shift(); ED.redo = [];
+  fn(); edRecalc(); edSave();
+}
+function edUndo(redo){
+  const from = redo ? ED.redo : ED.hist, to = redo ? ED.hist : ED.redo;
+  if (!from.length) return;
+  to.push(JSON.stringify(ED.notes)); ED.notes = JSON.parse(from.pop()); edRecalc(); edSave();
+}
+function edSave(now){
+  clearTimeout(ED.saveTimer);
+  const go = () => { ED.rec.notes = ED.notes.map(n => ({ type:n.type, s:n.s, t:n.t })); dbPut(ED.rec).then(() => $('edSaved').textContent = dbOk ? '自動保存済み' : '保存できません（このブラウザ）'); };
+  if (now) go(); else { $('edSaved').textContent = '保存中…'; ED.saveTimer = setTimeout(go, 600); }
+}
+const near = (a, b) => Math.abs(a - b) < 0.01;
+function clearAt(q, s2){   // remove anything starting/ending at q (or inside [q, s2] for a new hold)
+  const hi = s2 == null ? q : s2;
+  ED.notes = ED.notes.filter(n => !(n.s <= hi + 0.01 && n.t >= q - 0.01));
+}
+function addNote2(type, s, t){
+  clearAt(s, t);
+  ED.notes.push({ type, s, t });
+}
+// playback (with metronome and per-note blips so the chart can be heard)
+function edBeatNow(){ return ED.playing ? ED.b0 + (actx.currentTime - ED.t0 - latency()) / spbE() : ED.cursor; }
+function edPlay(){
+  if (ED.playing) { edStop(); return; }
+  initAudio(); actx.resume();
+  const spb = spbE(), off = Math.max(0, ED.rec.phase + ED.cursor * spb);
+  if (off >= ED.buffer.duration - 0.05) ED.cursor = 0;
+  ED.bus = actx.createGain(); ED.bus.gain.value = 0.8; ED.bus.connect(comp);
+  ED.src = actx.createBufferSource(); ED.src.buffer = ED.buffer; ED.src.connect(ED.bus);
+  ED.t0 = actx.currentTime + 0.08; ED.src.start(ED.t0, Math.max(0, ED.rec.phase + ED.cursor * spb));
+  ED.b0 = (Math.max(0, ED.rec.phase + ED.cursor * spb) - ED.rec.phase) / spb;
+  ED.schedBeat = Math.ceil(ED.b0 * 4) / 4; ED.playing = true;
+  ED.src.onended = () => { if (ED.playing && ED.src && actx.currentTime > ED.t0 + 0.2) edStop(); };
+  $('edPlay').textContent = '⏸ 停止';
+}
+function edStop(){
+  if (!ED.playing) return;
+  ED.cursor = Math.max(0, snapB(edBeatNow()));
+  ED.playing = false;
+  try { ED.src.stop(); } catch(e) {}
+  try { ED.bus.disconnect(); } catch(e) {}
+  ED.src = null; $('edPlay').textContent = '▶ 再生';
+}
+function edSchedule(){
+  if (!ED.playing) return;
+  const spb = spbE(), ahead = actx.currentTime + 0.15;
+  for (;;) {
+    const b = ED.schedBeat, t = ED.t0 + (b - ED.b0) * spb;
+    if (t > ahead) break;
+    if (t >= actx.currentTime - 0.02) {
+      if ($('edClick').checked && b % 1 === 0) tone(t, 'square', b % 4 === 0 ? 1600 : 1100, 0.03, 0.08, ED.bus);
+      for (const n of ED.notes) if (near(n.t, b) || (n.type === 'hold' && near(n.s, b))) {
+        const f = { up:880, hold:near(n.s, b) && !near(n.t, b) ? 520 : 1040, down:330, right:1320, left:1180 }[n.type];
+        tone(t, 'triangle', f, 0.09, ED.bad.has(n) ? 0.05 : 0.16, ED.bus);
+      }
+    }
+    ED.schedBeat += 0.25;
+  }
+}
+// drawing
+function edX(b){ return GUT + (b - ED.scroll) * ED.ppb; }
+function edDraw(){
+  if (!ED.open) return;
+  const c = ectx, W2 = ED.W, H2 = ED.H, end = edEnd(), spb = spbE();
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = '#120a22'; c.fillRect(0, 0, W2, H2);
+  const rowTop = RULER + STRIP, rowH = Math.max(30, (H2 - rowTop - 6) / ROWS.length);
+  const b0 = ED.scroll, b1 = ED.scroll + (W2 - GUT) / ED.ppb;
+  // past-the-end shade
+  const xe = edX(end); if (xe < W2) { c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(Math.max(GUT, xe), 0, W2, H2); }
+  // loudness bars + level envelope
+  for (let i = Math.max(0, Math.floor(b0 / 4)); i < ED.bars.length && i * 4 < b1; i++) {
+    const x = edX(i * 4); c.fillStyle = `rgba(255,181,71,${0.06 + ED.bars[i] * 0.3})`; c.fillRect(Math.max(GUT, x), RULER, 4 * ED.ppb, STRIP);
+  }
+  const an = ED.rec.an; c.fillStyle = 'rgba(255,244,230,.5)';
+  for (let x = GUT; x < W2; x += 2) {
+    const t = ED.rec.phase + (ED.scroll + (x - GUT) / ED.ppb) * spb, i = Math.round(t * an.fps);
+    const v = i >= 0 && i < an.rmsEnv.length ? Math.min(1, an.rmsEnv[i] * 4) : 0;
+    c.fillRect(x, RULER + STRIP / 2 - v * (STRIP / 2 - 3), 1.5, v * (STRIP - 6));
+  }
+  // grid
+  const stepG = 1 / ED.snap;
+  for (let k = Math.ceil(b0 * ED.snap) / ED.snap; k <= b1; k += stepG) {
+    const x = edX(k); if (x < GUT) continue;
+    const bar = k % 4 === 0, beat = k % 1 === 0;
+    c.fillStyle = bar ? 'rgba(255,244,230,.35)' : beat ? 'rgba(255,244,230,.14)' : k % 0.5 === 0 ? 'rgba(255,244,230,.06)' : 'rgba(255,244,230,.03)';
+    c.fillRect(x, bar ? 0 : RULER, 1, H2);
+    if (bar && ED.ppb * 4 > 34) { c.fillStyle = C.muted; c.font = '700 11px "JetBrains Mono", monospace'; c.textAlign = 'left'; c.fillText(String(k / 4 + 1), x + 4, 15); }
+  }
+  // rows
+  ROWS.forEach((row, ri) => {
+    const y = rowTop + ri * rowH;
+    c.fillStyle = ri % 2 ? 'rgba(255,244,230,.025)' : 'rgba(255,244,230,0)'; c.fillRect(GUT, y, W2 - GUT, rowH);
+    c.fillStyle = 'rgba(255,244,230,.08)'; c.fillRect(GUT, y, W2 - GUT, 1);
+  });
+  // hover ghost
+  if (ED.hover && !ED.drag) {
+    const { ri, q } = ED.hover, x = edX(q), y = rowTop + ri * rowH + rowH / 2;
+    c.strokeStyle = NOTE_COLOR[ROWS[ri].type]; c.globalAlpha = 0.5; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 10, 0, Math.PI * 2); c.stroke(); c.globalAlpha = 1;
+  }
+  // notes
+  const all = ED.drag ? ED.notes.concat([ED.drag.note]) : ED.notes;
+  for (const n of all) {
+    if (n.t < b0 - 1 || n.s > b1 + 1) continue;
+    const ri = ROWS.findIndex(r => r.type === n.type), y = rowTop + ri * rowH + rowH / 2, bad = ED.bad.has(n);
+    const col = bad ? C.danger : NOTE_COLOR[n.type], rad = Math.min(12, rowH * 0.3);
+    if (n.type === 'hold') {
+      const xs = edX(n.s), xe2 = edX(n.t);
+      c.fillStyle = bad ? 'rgba(255,93,115,.3)' : 'rgba(95,225,217,.3)'; c.beginPath(); c.moveTo(xs, y - rad); c.lineTo(xe2, y - rad); c.arc(xe2, y, rad, -Math.PI / 2, Math.PI / 2); c.lineTo(xs, y + rad); c.arc(xs, y, rad, Math.PI / 2, -Math.PI / 2); c.fill();
+      c.fillStyle = col; c.beginPath(); c.arc(xs, y, rad * 0.7, 0, Math.PI * 2); c.fill(); c.beginPath(); c.arc(xe2, y, rad, 0, Math.PI * 2); c.fill();
+      edArrow(c, xe2, y, 'up', rad * 0.5);
+    } else {
+      const x = edX(n.s); c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
+      edArrow(c, x, y, n.type, rad * 0.5);
+    }
+  }
+  // labels
+  c.fillStyle = '#1d1233'; c.fillRect(0, 0, GUT, H2);
+  c.textAlign = 'left'; c.font = '700 13px "Zen Kaku Gothic New", sans-serif';
+  ROWS.forEach((row, ri) => { c.fillStyle = NOTE_COLOR[row.type]; c.fillText(row.label, 12, rowTop + ri * rowH + rowH / 2 + 5); });
+  c.fillStyle = C.muted; c.font = '700 10px "JetBrains Mono", monospace'; c.fillText('小節', 12, 15); c.fillText('曲の音量', 12, RULER + STRIP / 2 + 4);
+  // playhead
+  const pb = edBeatNow(), px = edX(pb);
+  if (px >= GUT && px <= W2) { c.fillStyle = ED.playing ? C.ink : C.amber; c.fillRect(px - 1, 0, 2, H2); c.beginPath(); c.moveTo(px - 6, 0); c.lineTo(px + 6, 0); c.lineTo(px, 8); c.fill(); }
+  $('edPos').textContent = `${where(Math.max(0, snapB(pb)))} · ${fmtTime(Math.max(0, ED.rec.phase + pb * spb))} / ${fmtTime(ED.rec.an.dur)}`;
+}
+function edArrow(c, x, y, dir, s){
+  c.save(); c.translate(x, y); c.rotate({ up:-Math.PI / 2, down:Math.PI / 2, right:0, left:Math.PI }[dir]);
+  c.strokeStyle = C.dark; c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(-s, 0); c.lineTo(s, 0); c.moveTo(s * 0.15, -s * 0.8); c.lineTo(s, 0); c.lineTo(s * 0.15, s * 0.8); c.stroke(); c.restore();
+}
+function edHit(e){
+  const r = ecv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  const rowTop = RULER + STRIP, rowH = Math.max(30, (ED.H - rowTop - 6) / ROWS.length);
+  const beat = ED.scroll + (x - GUT) / ED.ppb, q = Math.max(0, snapB(beat));
+  if (x < GUT) return null;
+  if (y < rowTop) return { ruler:true, q, beat };
+  const ri = Math.floor((y - rowTop) / rowH); if (ri < 0 || ri >= ROWS.length) return null;
+  return { ri, q, beat };
+}
+ecv.addEventListener('pointerdown', e => {
+  const h = edHit(e); if (!h) return;
+  ecv.setPointerCapture(e.pointerId);
+  if (h.ruler) { ED.drag = null; ED.scrub = true; const was = ED.playing; edStop(); ED.cursor = h.q; ED.resume = was; return; }
+  const type = ROWS[h.ri].type;
+  if (type === 'hold') {
+    const hit = ED.notes.find(n => n.type === 'hold' && h.q >= n.s - 0.01 && h.q <= n.t + 0.01);
+    if (hit) { edChange(() => { ED.notes = ED.notes.filter(n => n !== hit); }); return; }
+    ED.drag = { note:{ type:'hold', s:h.q, t:h.q + 1 } };
+  } else {
+    const hit = ED.notes.find(n => n.type === type && near(n.s, h.q));
+    edChange(() => { if (hit) ED.notes = ED.notes.filter(n => n !== hit); else addNote2(type, h.q, h.q); });
+  }
+});
+ecv.addEventListener('pointermove', e => {
+  const h = edHit(e);
+  if (ED.scrub && h) { ED.cursor = h.q; const view = (ED.W - GUT) / ED.ppb; if (h.q > ED.scroll + view * 0.9 || h.q < ED.scroll + view * 0.05) ED.scroll = h.q - view * 0.5; return; }
+  if (ED.drag && h) { ED.drag.note.t = Math.max(ED.drag.note.s + 0.5, snapB(h.beat)); return; }
+  ED.hover = h && !h.ruler ? h : null;
+});
+const edUp = () => {
+  if (ED.scrub) { ED.scrub = false; if (ED.resume) edPlay(); }
+  if (ED.drag) { const n = ED.drag.note; ED.drag = null; edChange(() => addNote2('hold', n.s, n.t)); }
+};
+ecv.addEventListener('pointerup', edUp); ecv.addEventListener('pointercancel', edUp);
+ecv.addEventListener('pointerleave', () => { ED.hover = null; });
+ecv.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    const r = ecv.getBoundingClientRect(), x = e.clientX - r.left, at = ED.scroll + (x - GUT) / ED.ppb;
+    ED.ppb = clamp(ED.ppb * Math.exp(-e.deltaY * 0.002), 16, 200); ED.scroll = at - (x - GUT) / ED.ppb; $('edZoom').value = ED.ppb;
+  } else ED.scroll = clamp(ED.scroll + (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) / ED.ppb, -2, edEnd());
+}, { passive:false });
+$('edZoom').addEventListener('input', e => { const mid = ED.scroll + (ED.W - GUT) / 2 / ED.ppb; ED.ppb = +e.target.value; ED.scroll = mid - (ED.W - GUT) / 2 / ED.ppb; });
+$('edPlay').addEventListener('click', edPlay);
+// seek bar: dragging moves the playhead and scrolls the notes with it; playback resumes on release
+function edSeekTo(b){ ED.cursor = clamp(snapB(b), 0, edEnd()); ED.scroll = ED.cursor - (ED.W - GUT) / ED.ppb * 0.25; }
+$('edSeek').addEventListener('input', e => {
+  if (!ED.seeking) { ED.seeking = true; ED.resume = ED.playing; edStop(); }
+  edSeekTo(+e.target.value);
+});
+$('edSeek').addEventListener('change', e => { edSeekTo(+e.target.value); ED.seeking = false; if (ED.resume) { ED.resume = false; edPlay(); } });
+$('edClose').addEventListener('click', closeEditor);
+$('edUndo').addEventListener('click', () => edUndo(false));
+$('edErrors').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const er = ED.errors[+b.dataset.i]; edStop(); ED.cursor = er.n.s; ED.scroll = er.n.s - 4; });
+$('edTitle').addEventListener('input', e => { ED.rec.title = e.target.value.trim() || '無題'; edSave(); });
+$('edBpm').addEventListener('change', e => {
+  const v = +e.target.value; if (!(v >= 40 && v <= 300)) { e.target.value = ED.rec.bpm; return; }
+  edStop(); ED.rec.bpm = v; edRecalc(); edSave(); edStatus('BPMを変えました。ノーツは拍の位置のまま動きます。合わなければ「自動で譜面を作る」で作り直せます。');
+});
+function scaleTempo(f){
+  edStop();
+  edChange(() => { ED.rec.bpm = Math.round(ED.rec.bpm * f * 100) / 100; ED.notes = ED.notes.map(n => ({ type:n.type, s:Math.round(n.s * f * 4) / 4, t:Math.round(n.t * f * 4) / 4 })); });
+  ED.cursor = Math.round(ED.cursor * f * 4) / 4; ED.scroll *= f;
+  $('edBpm').value = ED.rec.bpm; edStatus(`BPMを ${ED.rec.bpm} にしました（ノーツは同じ時間の位置に移しました）`);
+}
+$('edHalf').addEventListener('click', () => scaleTempo(0.5));
+$('edDouble').addEventListener('click', () => scaleTempo(2));
+$('edTap').addEventListener('click', () => {
+  const now = performance.now(); ED.taps = ED.taps.filter(t => now - t < 2500).concat(now);
+  if (ED.taps.length >= 4) {
+    const iv = (ED.taps[ED.taps.length - 1] - ED.taps[0]) / (ED.taps.length - 1), bpm = Math.round(60000 / iv * 10) / 10;
+    edStatus(`タップで計ったBPM：${bpm}（自動解析は ${ED.rec.bpm}）。使うならBPM欄に入れてください。`);
+  } else edStatus(`拍に合わせてあと ${4 - ED.taps.length} 回以上タップ`);
+});
+$('edPhase').addEventListener('change', e => {
+  const v = +e.target.value; if (!isFinite(v)) { e.target.value = Math.round(ED.rec.phase * 1000); return; }
+  edStop(); ED.rec.phase = v / 1000; edRecalc(); edSave(); edStatus('最初の拍をずらしました。メトロノームを鳴らして曲と合っているか確かめてください。');
+});
+$('edSnap').addEventListener('change', e => { ED.snap = +e.target.value; try { localStorage.setItem('rb-snap', ED.snap); } catch(err) {} edStatus(ED.snap === 4 ? '1/4拍（16分）単位で置けます。' : '1/2拍（8分）単位で置けます。'); });
+$('edDiff').addEventListener('change', e => { ED.rec.diff = +e.target.value; edSave(); edStatus('難しさは「自動で譜面を作る」ときに使われます。'); });
+$('edAuto').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (ED.notes.length && !b.dataset.armed) { b.dataset.armed = '1'; b.textContent = '今の譜面を上書きする？'; setTimeout(() => { delete b.dataset.armed; b.textContent = '自動で譜面を作る'; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = '自動で譜面を作る';
+  edStop(); ED.rec.seed = (Math.random() * 1e9) | 0;
+  const notes = autoNotes(ED.rec, ED.buffer);
+  edChange(() => { ED.notes = notes; });
+  edStatus(`自動で ${notes.length} ノーツの譜面を作りました（${(DIFFS.find(d => d.v === ED.rec.diff) || DIFFS[1]).jp}）。押すたびに違う譜面になります。`);
+});
+$('edClear').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = '本当に全部消す？'; setTimeout(() => { delete b.dataset.armed; b.textContent = '全消去'; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = '全消去'; edChange(() => { ED.notes = []; });
+});
+function edTest(auto){
+  edStop(); edSave(true);
+  $('editor').hidden = true; ED.open = false;
+  startGame(stageOf(ED.rec, ED.buffer), { auto, from:'editor' });
+}
+$('edTest').addEventListener('click', () => edTest(false));
+$('edTestAuto').addEventListener('click', () => edTest(true));
+function backToEditor(){
+  stopSong(); if (bus) { try { bus.disconnect(); } catch(e){} bus = null; }
+  if (actx && actx.state === 'suspended') actx.resume();
+  G = null; paused = false;
+  $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = true; $('pad').hidden = true;
+  ED.open = true; $('editor').hidden = false; edResize(); edRecalc();
+}
+// chart text export / import
+$('edJson').addEventListener('click', () => {
+  const r = ED.rec;
+  $('jsonText').value = JSON.stringify({ format:'rooftop-beat-chart', version:2, title:r.title, bpm:r.bpm, firstBeatMs:Math.round(r.phase * 1000), notes:ED.notes.map(n => n.type === 'hold' ? [n.type, n.s, n.t] : [n.type, n.s]) });
+  $('jsonMsg').textContent = ''; $('jsonDlg').hidden = false; $('jsonText').focus(); $('jsonText').select();
+});
+$('jsonCopy').addEventListener('click', () => {
+  const ta = $('jsonText');
+  navigator.clipboard.writeText(ta.value).then(() => $('jsonMsg').textContent = 'コピーしました', () => { ta.select(); $('jsonMsg').textContent = '選択しました。⌘C / Ctrl+C でコピーしてください'; });
+});
+$('jsonLoad').addEventListener('click', () => {
+  try {
+    const d = JSON.parse($('jsonText').value);
+    if (!d || !Array.isArray(d.notes)) throw 0;
+    let notes = d.notes.map(a => ({ type:a[0], s:+a[1], t:+(a[2] != null ? a[2] : a[1]) })).filter(n => ROWS.some(r => r.type === n.type) && isFinite(n.s) && isFinite(n.t) && n.s >= 0);
+    if ((d.version || 1) < 2) notes = migrateKicks(notes);
+    edChange(() => { ED.notes = notes; if (d.bpm >= 40 && d.bpm <= 300) ED.rec.bpm = +d.bpm; if (isFinite(d.firstBeatMs)) ED.rec.phase = d.firstBeatMs / 1000; });
+    $('edBpm').value = ED.rec.bpm; $('edPhase').value = Math.round(ED.rec.phase * 1000);
+    $('jsonDlg').hidden = true; edStatus(`${notes.length} ノーツを読み込みました`);
+  } catch(e) { $('jsonMsg').textContent = '譜面データとして読めませんでした。書き出したテキストをそのまま貼り付けてください。'; }
+});
+$('jsonClose').addEventListener('click', () => { $('jsonDlg').hidden = true; });
+// keyboard: Space play/stop, ⌘Z undo, ←→ move the cursor, and while recording the arrows place notes
+window.addEventListener('keydown', e => {
+  if (!ED.open || !$('jsonDlg').hidden) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' && e.target.type !== 'checkbox' && e.target.type !== 'range' || tag === 'select' || tag === 'textarea') return;
+  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') { e.preventDefault(); edUndo(e.shiftKey); return; }
+  if (e.code === 'Space') { e.preventDefault(); edPlay(); return; }
+  if (e.code === 'Escape') { if (ED.playing) edStop(); return; }
+  const rec = $('edRec').checked && ED.playing;
+  if (rec && !e.repeat && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowRight' || e.code === 'ArrowLeft')) {
+    e.preventDefault();
+    const q = Math.max(0, snapB(edBeatNow()));
+    if (e.code === 'ArrowUp') ED.upAt = edBeatNow();
+    else edChange(() => addNote2({ ArrowDown:'down', ArrowRight:'right', ArrowLeft:'left' }[e.code], q, q));
+    return;
+  }
+  if (!ED.playing && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { e.preventDefault(); ED.cursor = Math.max(0, ED.cursor + (e.code === 'ArrowLeft' ? -1 : 1)); if (edX(ED.cursor) > ED.W - 40 || edX(ED.cursor) < GUT + 20) ED.scroll = ED.cursor - 4; }
+});
+window.addEventListener('keyup', e => {
+  if (!ED.open || e.code !== 'ArrowUp' || ED.upAt == null) return;
+  const b0 = ED.upAt, b1 = edBeatNow(), q0 = Math.max(0, snapB(b0)); ED.upAt = null;
+  if (b1 - b0 >= 0.6) edChange(() => addNote2('hold', q0, Math.max(q0 + 0.5, snapB(b1))));
+  else edChange(() => addNote2('up', q0, q0));
+});
+window.addEventListener('resize', () => { if (ED.open) edResize(); });
+function edFrame(){
+  if (!ED.open) return;
+  edSchedule();
+  const view = (ED.W - GUT) / ED.ppb;
+  // while playing, the playhead stays put a quarter in and the notes scroll past it
+  if (ED.playing) ED.scroll = edBeatNow() - view * 0.25;
+  const seek = $('edSeek');
+  seek.max = Math.max(1, Math.floor(edEnd() * 2) / 2);
+  if (!ED.seeking) seek.value = Math.max(0, edBeatNow());
+  edDraw();
+}
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (G) {
+    if (!paused) { update(G, dt); schedule(); }
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    drawSky(G); drawWorld(G); drawLane(G); drawHUD(G);
+  }
+  edFrame();
+  requestAnimationFrame(frame);
+}
+toMenu();
+for (const s of Object.values(SONGS)) loadSong(s);
+dbAll().then(() => renderMine());
+requestAnimationFrame(frame);
+})();
+</script>
