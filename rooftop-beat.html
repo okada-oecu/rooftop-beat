@@ -364,6 +364,7 @@ function sfx(kind){
   if (!actx || !G || G.demo) return;
   const t = actx.currentTime;
   if (kind === 'jump') noise(t, 0.12, 'bandpass', 2600, 0.12, comp);
+  if (kind === 'flow') { [0, 4, 7, 12].forEach((iv, i) => tone(t + i * 0.05, 'triangle', mtof(72 + iv), 0.18, 0.12, comp)); }
   if (kind === 'big') { noise(t, 0.3, 'bandpass', 1400, 0.2, comp); const o = tone(t, 'sine', 300, 0.25, 0.15, comp); o.frequency.exponentialRampToValueAtTime(900, t + 0.25); }
   if (kind === 'slide') noise(t, 0.3, 'lowpass', 2400, 0.22, comp, 300);
   if (kind === 'kick') { tone(t, 'square', 520, 0.06, 0.12, comp); noise(t, 0.08, 'highpass', 3000, 0.18, comp); }
@@ -563,6 +564,7 @@ let G = null;
 function makeGame(stage, demo){
   const g = {
     stage, demo, spb: 60 / stage.bpm, segs: [], notes: [], typeCount: {}, noteLo: 0,
+    flow: demo ? 1 : 0, flowOn: !!demo, flowVis: demo ? 1 : 0, squash: 0,
     cur:0, mode:'ground', arc:null, x:0, y:0, vx:0, vy:0, beat:0, chargeAt:0, slideEnd:0, fallT:0, kickQueued:false,
     score:0, combo:0, maxCombo:0, cleared:0, counts:{ PERFECT:0, GREAT:0, GOOD:0, STUMBLE:0 },
     parts:[], pops:[], camX:-VW * 0.28, camY:-VH * 0.58, shake:0, running:true, step:0, cueIdx:0,
@@ -583,8 +585,15 @@ function judge(g, gr, weight){
   g.counts[gr]++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
   g.score += Math.round({ PERFECT:300, GREAT:200, GOOD:100 }[gr] * weight * (1 + Math.min(g.combo, 100) / 50));
   pop(g, gr, GRADE_COLOR[gr]);
+  // flow: 8 PERFECTs in a row fill the gauge; GREAT/GOOD keep it, any miss empties it
+  if (gr === 'PERFECT' && !g.flowOn) {
+    g.flow = Math.min(1, g.flow + FLOW_STEP);
+    if (g.flow >= 1) { g.flowOn = true; g.pops.push({ text:'FLOW', color:C.teal, x:g.x, y:g.y - 100, t:0 }); sfx('flow'); }
+  }
 }
-function stumble(g, label){ if (g.demo) return; g.combo = 0; g.counts.STUMBLE++; pop(g, label, C.danger); sfx('stumble'); }
+const FLOW_STEP = 1 / 8;
+function breakFlow(g){ if (g.demo) return; if (g.flowOn) pop(g, 'FLOW BREAK', C.muted); g.flow = 0; g.flowOn = false; }
+function stumble(g, label){ if (g.demo) return; g.combo = 0; g.counts.STUMBLE++; pop(g, label, C.danger); sfx('stumble'); breakFlow(g); }
 function dust(g, n, color, spread, dir){
   for (let i = 0; i < n; i++) g.parts.push({ x:g.x + (Math.random() - .5) * 16, y:g.y - 2, vx:((dir || 0) + (Math.random() - .7)) * spread, vy:-Math.random() * spread * .6, life:0, max:.35 + Math.random() * .3, color, size:2 + Math.random() * 2.5 });
 }
@@ -594,6 +603,7 @@ function jump(g, seg){
   if (seg.kind === 'wall') g.arc = { kind:'towall', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y + CONTACT, peak:30 };
   else if (seg.shaft) { const k = seg.shaft.kicks[0]; g.ki = 0; g.arc = { kind:'toshaft', b0:seg.T, dur:k.t - seg.T, x0:seg.T * PPB - seg.ox, x1:k.x, y0:seg.y, y1:k.y, peak:34 }; }
   else g.arc = { kind:'jump', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y, peak:35 + 40 * seg.air, to:g.cur + 1, flip:seg.kind === 'hold' };
+  if (g.flowOn && g.arc.kind === 'jump' && !g.arc.flip && seg.air * g.spb >= 0.22) g.arc.trick = pick(Math.random, ['front', 'back', 'twist', 'front']);
   sfx(seg.kind === 'hold' ? 'big' : 'jump');
   dust(g, seg.kind === 'hold' ? 16 : 7, seg.kind === 'hold' ? C.teal : C.ink, seg.kind === 'hold' ? 240 : 120);
 }
@@ -625,12 +635,12 @@ function fall(g, label, cause){
   } else g.vy = 0;
   g.vx = g.mode === 'wall' ? -60 : g.mode === 'cling' ? (g.segs[g.cur].shaft.kicks[g.ki].wall === 'R' ? -50 : 50)
     : g.mode === 'air' && g.arc && g.arc.x0 != null ? (g.arc.x1 - g.arc.x0) / (g.arc.dur * g.spb) : PPB / g.spb;
-  g.mode = 'fall'; g.fallT = 0; g.combo = 0; g.cause = cause || '谷へ落下';
+  g.mode = 'fall'; g.fallT = 0; g.combo = 0; g.cause = cause || '谷へ落下'; breakFlow(g);
   if (label) pop(g, label, C.danger);
   sfx('fail'); stopMusic(g);
 }
 function crash(g){
-  g.mode = 'crash'; g.vx = -160; g.vy = -380; g.fallT = 0; g.crashY = g.segs[g.cur].y; g.combo = 0; g.cause = '配管に激突';
+  g.mode = 'crash'; g.vx = -160; g.vy = -380; g.fallT = 0; g.crashY = g.segs[g.cur].y; g.combo = 0; g.cause = '配管に激突'; breakFlow(g);
   pop(g, 'CRASH', C.danger); g.shake = 10; sfx('crash'); stopMusic(g);
 }
 function bez(a, u){ const top = Math.min(a.y0, a.y1) - a.peak, c = 2 * top - (a.y0 + a.y1) / 2; return (1 - u) * (1 - u) * a.y0 + 2 * u * (1 - u) * c + u * u * a.y1; }
@@ -737,6 +747,7 @@ function update(g, dt){
     else if (u < 1) g.y = bez(a, u);
     else if (a.kind === 'jump') {
       g.cur = a.to; g.mode = 'ground'; g.y = a.y1; g.cleared++; g.ox = g.segs[g.cur].ox || 0;
+      g.squash = a.flip || a.kick || a.trick ? 1 : 0.7;
       if (g.buffer) { const bf = g.buffer; g.buffer = null; pressAt(g, bf.dir, bf.b); if (bf.rel != null && g.mode === 'charge') releaseAt(g, bf.rel); }
       sfx('land'); dust(g, a.flip || a.kick ? 14 : 6, C.ink, a.flip ? 200 : 90);
       if (a.flip) g.shake = 6;
@@ -747,7 +758,7 @@ function update(g, dt){
       g.x = a.x1; g.y = a.y1;
       if (g.kickQueued) shaftKick(g); else g.mode = 'cling';
     } else {
-      if (b <= seg.T + wB) { g.mode = 'ground'; g.y = a.y1; }
+      if (b <= seg.T + wB) { g.mode = 'ground'; g.y = a.y1; g.squash = 0.45; }
       else fall(g, '', '踏み切りが合わなかった');
     }
   } else if (g.mode === 'wall') {
@@ -780,6 +791,9 @@ function update(g, dt){
     g.camY += (ty - VH * 0.58 - g.camY) * Math.min(1, dt * 4);
   }
   g.shake = Math.max(0, g.shake - dt * 30);
+  g.squash = Math.max(0, g.squash - dt * 6);
+  g.flowVis += ((g.flowOn ? 1 : 0) - g.flowVis) * Math.min(1, dt * 3);
+  if (g.flowOn && g.mode === 'air' && Math.random() < 0.6) g.parts.push({ x:g.x - 6, y:g.y - 20 - Math.random() * 30, vx:-60 - Math.random() * 60, vy:-20, life:0, max:.4, color: Math.random() < 0.5 ? C.teal : C.amber, size:2 + Math.random() * 2 });
   for (const p of g.parts) { p.life += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
   g.parts = g.parts.filter(p => p.life < p.max);
   for (const p of g.pops) p.t += dt;
@@ -804,6 +818,7 @@ function drawSky(g){
     { par:0.12, w:64, min:70, max:230, col:'#4a2150', base:0.8, win:0 },
     { par:0.35, w:104, min:120, max:360, col:'#26133a', base:0.86, win:0.12 },
   ];
+  const fv = g.flowVis || 0;
   for (const L of layers) {
     const off = g.camX * ZOOM * L.par, k0 = Math.floor(off / L.w) - 1, baseY = H * L.base - g.camY * ZOOM * L.par * 0.25 - 60;
     for (let k = k0; k < k0 + W / L.w + 3; k++) {
@@ -811,7 +826,11 @@ function drawSky(g){
       ctx.fillStyle = L.col; ctx.fillRect(x, baseY - h, bw, H - baseY + h);
       if (L.win) {
         for (let wy = baseY - h + 12; wy < H; wy += 16) for (let wx = x + 8; wx < x + bw - 8; wx += 14)
-          if (hash(k, wx | 0, wy | 0) < L.win) { ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(wx, wy, 5, 7); }
+          { const hw = hash(k, wx | 0, wy | 0);
+            if (hw < L.win) { ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(wx, wy, 5, 7); }
+            if (fv > 0.02 && hw < L.win + 0.22 && ((Math.floor(g.beat) + (wy / 16 | 0) + k) & 1)) {   // flow: rows of windows flash in turn on the beat
+              ctx.fillStyle = hw < (L.win + 0.11) ? C.teal : C.amber; ctx.globalAlpha = fv * (0.25 + 0.6 * pulse); ctx.fillRect(wx, wy, 5, 7); ctx.globalAlpha = 1;
+            } }
       }
     }
   }
@@ -837,6 +856,7 @@ function drawPlatforms(g){
     for (let wx = x1 + 14, c = 0; wx < x2 - 14; wx += 24, c++) for (let wy = top + 30, r = 0; wy < VH + 20; wy += 34, r++) {
       const h = hash(i, c, r);
       if (h < 0.22) { ctx.fillStyle = h < 0.06 ? 'rgba(95,225,217,.28)' : 'rgba(255,181,71,.22)'; ctx.fillRect(wx, wy, 9, 14); }
+      if (g.flowVis > 0.02 && h < 0.4 && ((Math.floor(g.beat) + r) & 1)) { ctx.fillStyle = h < 0.2 ? C.teal : C.amber; ctx.globalAlpha = g.flowVis * (0.15 + 0.45 * pulse); ctx.fillRect(wx, wy, 9, 14); ctx.globalAlpha = 1; }
     }
     ctx.fillStyle = '#2a2036'; ctx.fillRect(x1, top, x2 - x1, 6);
     const edge = NOTE_COLOR[s.jn.type];
@@ -895,7 +915,8 @@ function drawRunner(g){
   ctx.save(); ctx.translate(px, py);
   const facingLeft = (g.mode === 'cling' && seg.shaft.kicks[g.ki].wall === 'L') || (g.mode === 'air' && g.arc.x0 != null && g.arc.x1 < g.arc.x0);
   if (facingLeft) ctx.scale(-1, 1);
-  let hipY = -25, lean = 0.28, legs, arms, rot = 0;
+  if (g.squash > 0 && !REDUCED) { const q = g.squash * g.squash; ctx.scale(1 + 0.3 * q, 1 - 0.34 * q); }   // feet are the origin, so this squashes onto the roof
+  let hipY = -25, lean = 0.28, legs, arms, rot = 0, twist = 1;
   const t = performance.now() / 1000, ph = b * Math.PI * 2;
   if (g.mode === 'ground') {
     const s = Math.sin(ph), c = Math.cos(ph);
@@ -926,12 +947,19 @@ function drawRunner(g){
     arms = [[2.2 - tuck * 0.6, 0.8], [1.8 - tuck * 0.6, 0.9]];
     if (a.kick) { arms = [[2.8, 0.2], [2.5, 0.3]]; legs = [[0.3 + tuck, 0.6 + tuck], [-0.4, 0.3]]; }
     if (a.flip && !REDUCED) rot = (u * u * (3 - 2 * u)) * Math.PI * 2;
+    if (a.trick && !REDUCED) {
+      const e = u * u * (3 - 2 * u);
+      if (a.trick === 'front') rot = e * Math.PI * 2;
+      else if (a.trick === 'back') rot = -e * Math.PI * 2;
+      else { const c = Math.cos(e * Math.PI * 2); twist = Math.sign(c || 1) * Math.max(0.12, Math.abs(c)); }
+    }
   } else {
     legs = [[0.6 + Math.sin(t * 18), 0.8], [-0.4 + Math.sin(t * 18 + 2), 0.9]];
     arms = [[Math.PI - 0.6 + Math.sin(t * 22), 0.4], [Math.PI + 0.6 + Math.sin(t * 22 + 1), 0.4]];
     rot = g.mode === 'crash' ? -Math.min(1.45, g.fallT * 6) : -0.4;
   }
   if (rot) { ctx.translate(0, -24); ctx.rotate(rot); ctx.translate(0, 24); }
+  if (twist !== 1) ctx.scale(twist, 1);
   const hip = [0, hipY], sh = [Math.sin(lean) * 20, hipY - Math.cos(lean) * 20], head = [sh[0] + Math.sin(lean) * 9, sh[1] - Math.cos(lean) * 9];
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
@@ -1011,6 +1039,18 @@ function drawHUD(g){
   ctx.fillStyle = C.ink; ctx.font = '700 28px "JetBrains Mono", monospace'; ctx.fillText(String(g.score).padStart(7, '0'), 16, top + 40);
   ctx.fillStyle = C.muted; ctx.font = '500 12px "Zen Kaku Gothic New", sans-serif';
   ctx.fillText(`${g.stage.jp} · ${Math.round(g.stage.bpm)} BPM · 屋上 ${g.cleared}`, 16, top + 60);
+  { // flow gauge: one notch per PERFECT
+    const gx = 16, gy = top + 70, gw = 150, n = Math.round(1 / FLOW_STEP), on = g.flowOn, pulseF = REDUCED ? 0 : Math.exp(-frac(b) * 5);
+    for (let i = 0; i < n; i++) {
+      const filled = on || i < Math.round(g.flow * n);
+      ctx.fillStyle = filled ? (on ? (i % 2 ? C.amber : C.teal) : C.teal) : 'rgba(255,244,230,.12)';
+      ctx.globalAlpha = on ? 0.7 + 0.3 * pulseF : 1;
+      ctx.fillRect(gx + i * (gw / n), gy, gw / n - 3, 6);
+    }
+    ctx.globalAlpha = 1;
+    ctx.font = '700 11px "JetBrains Mono", monospace'; ctx.fillStyle = on ? C.teal : C.muted;
+    ctx.fillText(on ? 'FLOW' : 'FLOW — PERFECTを続ける', gx + gw + 8, gy + 7);
+  }
   if (g.stage.song) {   // song progress
     const p = clamp(b / g.stage.song.endBeat, 0, 1);
     ctx.fillStyle = 'rgba(255,244,230,.15)'; ctx.fillRect(16, 6, W - 32, 3);
