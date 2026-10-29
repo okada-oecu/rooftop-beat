@@ -180,7 +180,8 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <label class="set-row" for="sSfx"><span>効果音の音量</span><input id="sSfx" type="range" min="0" max="100" step="5"><output id="sSfxOut"></output></label>
     </div>
     <div class="set-group">
-      <h3>譜面（下のレーン）</h3>
+      <h3>譜面（ノーツ）</h3>
+      <label class="set-row" for="sView"><span>表示する場所</span><select id="sView"><option value="lane">下のレーン</option><option value="world">ビルに沿わせる</option><option value="both">両方</option></select><span></span></label>
       <label class="set-row" for="sLane"><span>大きさ</span><select id="sLane"><option value="0.8">小さめ</option><option value="1">ふつう</option><option value="1.35">大きめ</option><option value="1.7">特大</option></select><span></span></label>
       <label class="set-row" for="sSpeed"><span>流れる速さ</span><input id="sSpeed" type="range" min="0.5" max="2.5" step="0.25"><output id="sSpeedOut"></output></label>
       <label class="set-row" for="sHit"><span>判定エフェクト</span><select id="sHit"><option value="ring">光の輪</option><option value="burst">はじける粒</option><option value="both">輪＋粒</option><option value="off">なし</option></select><span></span></label>
@@ -406,7 +407,7 @@ const store = {
 };
 let offsetMs = store.get('rb-offset', 0);
 // player settings (this browser only)
-const SET_DEF = { music:0.8, sfx:0.8, lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
+const SET_DEF = { music:0.8, sfx:0.8, chartView:'lane', lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
   ghosts:true, tricks:true, windows:true, shake:true,
   keys:{ up:['ArrowUp','KeyW','Space'], down:['ArrowDown','KeyS'], left:['ArrowLeft','KeyA'], right:['ArrowRight','KeyD'] } };
 let SET = (() => { const v = store.get('rb-settings', {}) || {}; return { ...SET_DEF, ...v, keys:{ ...SET_DEF.keys, ...(v.keys || {}) } }; })();
@@ -1106,7 +1107,7 @@ function drawWorld(g){
   ctx.save();
   const sh = g.shake && SET.shake && !REDUCED ? (Math.random() - .5) * g.shake : 0;
   ctx.scale(ZOOM, ZOOM); ctx.translate(0, sh);
-  if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); drawGhosts(g); drawRunner(g); }
+  if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); if (!g.demo && SET.chartView !== 'lane') drawWorldNotes(g); drawGhosts(g); drawRunner(g); }
   for (const p of g.parts) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.color; ctx.fillRect(p.x - g.camX, p.y - g.camY, p.size, p.size); }
   ctx.globalAlpha = 1; ctx.textAlign = 'center';
   for (const p of g.pops) {
@@ -1124,6 +1125,73 @@ function arrow(x, y, dir, s, col){
   ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(s * 0.15, -s * 0.8); ctx.lineTo(s, 0); ctx.lineTo(s * 0.15, s * 0.8); ctx.stroke();
   ctx.restore();
+}
+function drawHitFx(g, x, y, S, textY, noGrade){
+  for (const f of g.laneFx || []) {
+    const k = f.t / 0.55, a = 1 - k;
+    ctx.save(); ctx.globalAlpha = a;
+    if (SET.hitFx === 'ring' || SET.hitFx === 'both') {
+      ctx.strokeStyle = f.color; ctx.lineWidth = 4 * a + 1; ctx.shadowColor = f.color; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(x, y, (15 + 32 * Math.sqrt(k)) * S, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (SET.hitFx === 'burst' || SET.hitFx === 'both') {
+      ctx.fillStyle = f.color;
+      for (let j = 0; j < 12; j++) { const an = j / 12 * Math.PI * 2 + f.t, d = (14 + 40 * Math.sqrt(k)) * S, sz = 4 * S * a + 1; ctx.fillRect(x + Math.cos(an) * d - sz / 2, y + Math.sin(an) * d - sz / 2, sz, sz); }
+    }
+    ctx.textAlign = 'center';
+    let ty = textY - 12 * k;
+    if (SET.laneText && !noGrade) {   // around the runner the grade already pops up in the world, so only FAST/SLOW is added
+      ctx.fillStyle = f.color; ctx.font = `400 ${Math.round(14 * Math.sqrt(S))}px "Dela Gothic One", sans-serif`;
+      ctx.fillText(f.label, x, ty); ty -= 18;
+    }
+    if (SET.fastSlow && f.sec != null && f.label !== 'PERFECT') {
+      ctx.font = `700 ${Math.round(11 * Math.sqrt(S))}px "JetBrains Mono", monospace`; ctx.fillStyle = f.sec < 0 ? '#7cc4ff' : '#ff9a6b';
+      ctx.fillText(f.sec < 0 ? 'FAST' : 'SLOW', x, ty);
+    }
+    ctx.restore();
+  }
+}
+// "ビルに沿わせる": each note sits where its move happens (roof edge, pipe, wall), with a ring that closes on it at the beat
+function noteWorldPos(g, n){
+  const s = g.segs[n.seg], o = s.ox || 0;
+  if (s.shaft && (n.type === 'left' || n.type === 'right')) { const k = s.shaft.kicks.find(k => k.t === n.t); return { x:k.x + (k.wall === 'R' ? -16 : 16), y:k.y - 34 }; }
+  if (n.type === 'right' && s.kind === 'wall') return { x:n.t * PPB - o - 18, y:g.segs[n.seg + 1].y + CONTACT - 34 };
+  if (n.type === 'down') return { x:n.t * PPB - o, y:s.y - 16 };
+  return { x:n.t * PPB - o, y:s.y - 34 };
+}
+function drawWorldNotes(g){
+  const b = g.beat, S = SET.lane, R = 11 * S, win = WIN.good / g.spb, LEAD = 1.25;
+  const approach = (ax, ay, t, col) => {   // glow while the press window is open; a ring that shrinks onto the note by the beat
+    const dt = t - b;
+    if (SET.near && Math.abs(dt) <= win) { ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.shadowColor = C.ink; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(ax, ay, R + 4 * S, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    if (dt > 0 && dt < LEAD) {
+      const k = dt / LEAD;
+      ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * (1 - k); ctx.strokeStyle = col; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(ax, ay, R + 4 * S + 44 * S * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+  };
+  for (let i = g.noteLo; i < g.notes.length; i++) {
+    const n = g.notes[i]; if (n.done) continue;
+    if (n.s - b > 8) break;
+    const p = noteWorldPos(g, n), x = p.x - g.camX, y = p.y - g.camY, col = NOTE_COLOR[n.type];
+    if (x < -80 || x > VW + 80) continue;
+    let ringAt = n.t;
+    if (n.type === 'hold') {
+      const o = g.segs[n.seg].ox || 0, xs = n.s * PPB - o - g.camX;
+      const charging = n.seg === g.cur && g.mode === 'charge';
+      if (!charging) ringAt = n.s;
+      ctx.save(); ctx.globalAlpha = 0.85;
+      roundRect(xs - R, y - R, x - xs + 2 * R, 2 * R, R); ctx.fillStyle = 'rgba(95,225,217,.25)'; ctx.fill();
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
+      if (charging) { ctx.fillStyle = 'rgba(95,225,217,.45)'; const fx = Math.min(x, Math.max(xs, g.x - g.camX)); roundRect(xs - R, y - R, fx - xs + 2 * R, 2 * R, R); ctx.fill(); }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, y, R * 0.7, 0, Math.PI * 2); ctx.fill(); arrow(xs, y, 'up', 4.5 * S, C.dark);
+      if (!charging) approach(xs, y, n.s, col);
+    }
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,244,230,.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+    arrow(x, y, n.type === 'hold' ? 'up' : n.type, 5.5 * S, C.dark);
+    if (n.type !== 'hold' || ringAt === n.t) approach(x, y, n.t, col);
+  }
 }
 function drawLane(g){
   const S = SET.lane, b = g.beat, lx = 16, lw = W - 32, lh = Math.round(46 * S), ly = H - lh - 14;
@@ -1162,31 +1230,7 @@ function drawLane(g){
   ctx.restore();
   const pulse = REDUCED ? 0 : Math.exp(-frac(b) * 6);
   ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(jx, cy, (15 + pulse * 4) * S, 0, Math.PI * 2); ctx.stroke();
-  // judgement effects at the hit circle
-  for (const f of g.laneFx || []) {
-    const k = f.t / 0.55, a = 1 - k;
-    ctx.save(); ctx.globalAlpha = a;
-    if (SET.hitFx === 'ring' || SET.hitFx === 'both') {
-      ctx.strokeStyle = f.color; ctx.lineWidth = 4 * a + 1; ctx.shadowColor = f.color; ctx.shadowBlur = 14;
-      ctx.beginPath(); ctx.arc(jx, cy, (15 + 32 * Math.sqrt(k)) * S, 0, Math.PI * 2); ctx.stroke();
-    }
-    if (SET.hitFx === 'burst' || SET.hitFx === 'both') {
-      ctx.fillStyle = f.color;
-      for (let j = 0; j < 12; j++) { const an = j / 12 * Math.PI * 2 + f.t, d = (14 + 40 * Math.sqrt(k)) * S, sz = 4 * S * a + 1; ctx.fillRect(jx + Math.cos(an) * d - sz / 2, cy + Math.sin(an) * d - sz / 2, sz, sz); }
-    }
-    if (SET.laneText) {
-      ctx.textAlign = 'center'; ctx.fillStyle = f.color; ctx.font = `400 ${Math.round(14 * Math.sqrt(S))}px "Dela Gothic One", sans-serif`;
-      ctx.fillText(f.label, jx, ly - 8 - 12 * k);
-      if (SET.fastSlow && f.sec != null && f.label !== 'PERFECT') {
-        ctx.font = `700 ${Math.round(11 * Math.sqrt(S))}px "JetBrains Mono", monospace`; ctx.fillStyle = f.sec < 0 ? '#7cc4ff' : '#ff9a6b';
-        ctx.fillText(f.sec < 0 ? 'FAST' : 'SLOW', jx, ly - 26 - 12 * k);
-      }
-    } else if (SET.fastSlow && f.sec != null && f.label !== 'PERFECT') {
-      ctx.textAlign = 'center'; ctx.font = `700 ${Math.round(11 * Math.sqrt(S))}px "JetBrains Mono", monospace`; ctx.fillStyle = f.sec < 0 ? '#7cc4ff' : '#ff9a6b';
-      ctx.fillText(f.sec < 0 ? 'FAST' : 'SLOW', jx, ly - 8 - 12 * k);
-    }
-    ctx.restore();
-  }
+  drawHitFx(g, jx, cy, S, ly - 8, false);
 }
 
 function drawHUD(g){
@@ -1231,7 +1275,7 @@ function drawHUD(g){
     const n = g.notes[i]; if (n.s - b > 4) break;
     if (n.done || n.nth > 2) continue;
     ctx.fillStyle = NOTE_COLOR[n.type]; ctx.font = '700 16px "Zen Kaku Gothic New", sans-serif';
-    ctx.fillText(g.segs[n.seg] && g.segs[n.seg].shaft && n.type !== 'up' ? HINTS.shaft : HINTS[n.type], W / 2, top + 96);
+    ctx.fillText(g.segs[n.seg] && g.segs[n.seg].shaft && n.type !== 'up' ? HINTS.shaft : n.type === 'up' && SET.chartView === 'world' ? '縮んでくる輪がノーツに重なった瞬間に ↑' : HINTS[n.type], W / 2, top + 96);
     break;
   }
 }
@@ -1378,7 +1422,7 @@ function saveSettings(){
   if (sfxBus) sfxBus.gain.value = SET.sfx;
   if (bus && G && G.running && !G.ended) bus.gain.setTargetAtTime(0.7 * SET.music, actx.currentTime, 0.05);
   if (ED.bus) ED.bus.gain.value = 0.8 * SET.music;   // ED exists by the time settings can change
-  document.documentElement.style.setProperty('--lane-space', Math.round(46 * SET.lane + 30) + 'px');
+  setLaneSpace();
 }
 function renderKeys(){
   $('keyRows').innerHTML = Object.keys(ACTION_JP).map(a => `<div class="set-row"><span>${ACTION_JP[a]}</span><span class="keyb">${KEYCAP === a ? 'キーを押してください（Escでやめる）' : SET.keys[a].map(keyName).join(' / ')}</span><button class="mini${KEYCAP === a ? ' wait' : ''}" data-key="${a}">${KEYCAP === a ? '待機中…' : '変更'}</button></div>`).join('');
@@ -1396,6 +1440,7 @@ function renderSettings(){
   const pct = v => Math.round(v * 100) + '%';
   $('sMusic').value = Math.round(SET.music * 100); $('sMusicOut').textContent = pct(SET.music);
   $('sSfx').value = Math.round(SET.sfx * 100); $('sSfxOut').textContent = pct(SET.sfx);
+  $('sView').value = SET.chartView;
   $('sLane').value = String(SET.lane); $('sSpeed').value = SET.laneSpeed; $('sSpeedOut').textContent = '×' + SET.laneSpeed;
   $('sHit').value = SET.hitFx;
   for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']]) $(id).checked = !!SET[k];
@@ -1429,12 +1474,14 @@ $('keyRows').addEventListener('click', e => { const b = e.target.closest('[data-
 $('sMusic').addEventListener('input', e => { SET.music = e.target.value / 100; $('sMusicOut').textContent = e.target.value + '%'; saveSettings(); });
 $('sSfx').addEventListener('input', e => { SET.sfx = e.target.value / 100; $('sSfxOut').textContent = e.target.value + '%'; saveSettings(); });
 $('sSfx').addEventListener('change', () => { initAudio(); actx.resume(); tone(actx.currentTime + 0.01, 'triangle', 880, 0.12, 0.2, sfxBus); });
+$('sView').addEventListener('change', e => { SET.chartView = e.target.value; saveSettings(); });
 $('sLane').addEventListener('change', e => { SET.lane = +e.target.value; saveSettings(); });
 $('sSpeed').addEventListener('input', e => { SET.laneSpeed = +e.target.value; $('sSpeedOut').textContent = '×' + SET.laneSpeed; saveSettings(); });
 $('sHit').addEventListener('change', e => { SET.hitFx = e.target.value; saveSettings(); });
 for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']])
   $(id).addEventListener('change', e => { SET[k] = e.target.checked; saveSettings(); });
-document.documentElement.style.setProperty('--lane-space', Math.round(46 * SET.lane + 30) + 'px');
+function setLaneSpace(){ document.documentElement.style.setProperty('--lane-space', (SET.chartView === 'world' ? 30 : Math.round(46 * SET.lane + 30)) + 'px'); }
+setLaneSpace();
 $('calStart').addEventListener('click', calStart);
 $('calApply').addEventListener('click', () => { offsetMs = CAL.result; off.value = offsetMs; showOff(); store.set('rb-offset', offsetMs); $('cal').hidden = true; });
 $('calClose').addEventListener('click', () => { CAL.on = false; clearTimeout(CAL.timer); $('cal').hidden = true; });
@@ -2163,7 +2210,10 @@ function frame(now){
   if (G) {
     if (!paused) { update(G, dt); schedule(); }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawSky(G); drawWorld(G); drawLane(G); drawHUD(G);
+    drawSky(G); drawWorld(G);
+    if (SET.chartView !== 'world' || G.demo) drawLane(G);
+    else drawHitFx(G, (G.x - G.camX) * ZOOM, (G.y - G.camY - 30) * ZOOM, SET.lane, (G.y - G.camY - 95) * ZOOM, true);
+    drawHUD(G);
   }
   edFrame();
   requestAnimationFrame(frame);
