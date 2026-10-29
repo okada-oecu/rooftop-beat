@@ -56,8 +56,23 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .btn{all:unset;cursor:pointer;padding:12px 18px;border-radius:5px;font-weight:700;font-size:15px;border:1px solid rgba(255,244,230,.25)}
 .btn.primary{background:var(--amber);color:#1a0f08;border-color:var(--amber)}
 .btn:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-#cal{z-index:6;background:rgba(10,6,18,.82)}
+#cal{z-index:8;background:rgba(10,6,18,.82)}
 #cal .panel{background:#1a1030}
+#setDlg{z-index:7;background:rgba(10,6,18,.82)}
+#setDlg .panel{background:#1a1030;max-width:620px}
+.set-group{display:grid;gap:10px;padding-top:14px;border-top:1px solid rgba(255,244,230,.1)}
+.set-group h3{margin:0;font:400 18px/1.2 var(--display)}
+.set-row{display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px}
+.set-row > span:first-child{color:var(--muted)}
+.set-row input[type=range]{width:100%;accent-color:var(--amber)}
+.set-row output{font:700 12px var(--mono);min-width:52px;text-align:right}
+.set-row select{background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:6px 8px;font:500 13px var(--body)}
+.set-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 16px;font-size:13px}
+.set-checks label{display:flex;gap:8px;align-items:center}
+.set-checks input{accent-color:var(--amber)}
+.keyb{font:700 12px var(--mono);color:var(--ink);overflow-wrap:anywhere}
+.mini.wait{background:var(--teal);color:#1a0f08;border-color:var(--teal)}
+@media (max-width:480px){ .set-row{grid-template-columns:1fr auto} .set-row > span:first-child{grid-column:1/-1} }
 .cal-dots{display:flex;gap:6px;flex-wrap:wrap}
 .cal-dots i{width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,244,230,.3)}
 .cal-dots i.on{background:var(--amber);border-color:var(--amber)}
@@ -103,7 +118,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .mini.tab.on{background:rgba(95,225,217,.18);border-color:var(--teal);color:var(--ink)}
 .mini[hidden]{display:none}
 #jsonText{width:100%;min-height:160px;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:10px;font:12px/1.5 var(--mono)}
-#pad{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
+#pad{position:fixed;right:16px;bottom:calc(var(--lane-space,76px) + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
 #pad button{width:64px;height:64px;border-radius:50%;border:2px solid currentColor;background:rgba(18,11,32,.55);font:700 24px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
 #pad [data-dir=up]{color:var(--amber)} #pad [data-dir=down]{color:var(--lilac)} #pad [data-dir=right]{color:var(--lime)} #pad [data-dir=left]{color:#ff8ad8}
 #pad button.on{background:currentColor}
@@ -143,12 +158,52 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <p class="hint" id="sharedNote"></p>
       <div id="sharedList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
-    <label class="offset" for="offset">判定オフセット
-      <input id="offset" type="range" min="-100" max="400" step="5" value="0">
-      <output id="offsetOut">0 ms</output>
-    </label>
-    <div class="row" style="margin-top:-8px"><button class="mini" id="calBtn">音に合わせて自動調整</button></div>
-    <p class="hint" style="margin-top:-6px"><kbd>W</kbd><kbd>S</kbd><kbd>D</kbd> や <kbd>Space</kbd>（＝↑）でも操作できます。スマホは画面右下のボタン。曲と譜面がズレて感じたら「音に合わせて自動調整」を（ワイヤレスイヤホンは特に遅れます）。<kbd>Esc</kbd> で一時停止。</p>
+    <div class="row"><button class="btn" id="setOpen">設定（音量・譜面・演出・キー・タイミング）</button></div>
+    <p class="hint" style="margin-top:-6px"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> や <kbd>Space</kbd>（＝↑）でも操作できます。キーは設定で入れ替えられます。スマホは画面右下のボタン。曲と譜面がズレて感じたら、設定の「音に合わせて自動調整」を（ワイヤレスイヤホンは特に遅れます）。<kbd>Esc</kbd> で一時停止。</p>
+  </div>
+</div>
+
+<div id="setDlg" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow">SETTINGS</p>
+    <h2 style="font-size:30px">設定</h2>
+    <div class="set-group">
+      <h3>音</h3>
+      <label class="set-row" for="sMusic"><span>音楽の音量</span><input id="sMusic" type="range" min="0" max="100" step="5"><output id="sMusicOut"></output></label>
+      <label class="set-row" for="sSfx"><span>効果音の音量</span><input id="sSfx" type="range" min="0" max="100" step="5"><output id="sSfxOut"></output></label>
+    </div>
+    <div class="set-group">
+      <h3>譜面（下のレーン）</h3>
+      <label class="set-row" for="sLane"><span>大きさ</span><select id="sLane"><option value="0.8">小さめ</option><option value="1">ふつう</option><option value="1.35">大きめ</option><option value="1.7">特大</option></select><span></span></label>
+      <label class="set-row" for="sSpeed"><span>流れる速さ</span><input id="sSpeed" type="range" min="0.5" max="2.5" step="0.25"><output id="sSpeedOut"></output></label>
+      <label class="set-row" for="sHit"><span>判定エフェクト</span><select id="sHit"><option value="ring">光の輪</option><option value="burst">はじける粒</option><option value="both">輪＋粒</option><option value="off">なし</option></select><span></span></label>
+      <div class="set-checks">
+        <label for="sLaneText"><input type="checkbox" id="sLaneText"> 判定の文字をレーンにも出す</label>
+        <label for="sFastSlow"><input type="checkbox" id="sFastSlow"> 早い（FAST）・遅い（SLOW）を出す</label>
+        <label for="sNear"><input type="checkbox" id="sNear"> 押せる瞬間のノーツを光らせる</label>
+      </div>
+    </div>
+    <div class="set-group">
+      <h3>演出</h3>
+      <div class="set-checks">
+        <label for="sGhosts"><input type="checkbox" id="sGhosts"> 残像（PERFECTを続けてフロー中）</label>
+        <label for="sTricks"><input type="checkbox" id="sTricks"> フロー中の自動トリック</label>
+        <label for="sWindows"><input type="checkbox" id="sWindows"> フロー中に窓が拍で光る</label>
+        <label for="sShake"><input type="checkbox" id="sShake"> 画面の揺れ</label>
+      </div>
+    </div>
+    <div class="set-group">
+      <h3>キー</h3>
+      <div id="keyRows" style="display:grid;gap:8px"></div>
+      <div class="row"><button class="mini" id="keyReset">キーを初期設定に戻す</button></div>
+    </div>
+    <div class="set-group">
+      <h3>タイミング</h3>
+      <label class="set-row" for="offset"><span>判定オフセット</span><input id="offset" type="range" min="-300" max="400" step="5" value="0"><output id="offsetOut">0 ms</output></label>
+      <p class="hint">押すのが音より早めになりがちなら −、遅めなら ＋。ワイヤレスイヤホンは ＋ に大きくずれます。</p>
+      <div class="row"><button class="mini" id="calBtn">音に合わせて自動調整</button></div>
+    </div>
+    <div class="row" style="padding-top:6px"><button class="btn primary" id="setClose">閉じる</button><button class="btn" id="setReset">すべて初期設定に戻す</button></div>
   </div>
 </div>
 
@@ -189,6 +244,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     <h2>一時停止中</h2>
     <div class="row">
       <button class="btn primary" id="resume">再開</button>
+      <button class="btn" id="pauseSet">設定</button>
       <button class="btn" id="quit">ステージ選択</button>
     </div>
   </div>
@@ -328,6 +384,12 @@ const store = {
   set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 };
 let offsetMs = store.get('rb-offset', 0);
+// player settings (this browser only)
+const SET_DEF = { music:0.8, sfx:0.8, lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
+  ghosts:true, tricks:true, windows:true, shake:true,
+  keys:{ up:['ArrowUp','KeyW','Space'], down:['ArrowDown','KeyS'], left:['ArrowLeft','KeyA'], right:['ArrowRight','KeyD'] } };
+let SET = (() => { const v = store.get('rb-settings', {}) || {}; return { ...SET_DEF, ...v, keys:{ ...SET_DEF.keys, ...(v.keys || {}) } }; })();
+const keyDir = code => Object.keys(SET.keys).find(a => SET.keys[a].includes(code));
 
 const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
 const pick = (r, arr) => arr[Math.floor(r() * arr.length)];
@@ -336,13 +398,14 @@ function mulberry32(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = M
 function hash(a, b, c){ let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; }
 
 /* ---------------- audio ---------------- */
-let actx = null, comp = null, bus = null, noiseBuf = null;
+let actx = null, comp = null, bus = null, noiseBuf = null, sfxBus = null;
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 function initAudio(){
   if (actx) return;
   actx = new (window.AudioContext || window.webkitAudioContext)();
   comp = actx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
   comp.connect(actx.destination);
+  sfxBus = actx.createGain(); sfxBus.gain.value = SET.sfx; sfxBus.connect(comp);
   noiseBuf = actx.createBuffer(1, actx.sampleRate, actx.sampleRate);
   const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
 }
@@ -384,15 +447,15 @@ function pad(t0, t1, midi){
 function sfx(kind){
   if (!actx || !G || G.demo) return;
   const t = actx.currentTime;
-  if (kind === 'jump') noise(t, 0.12, 'bandpass', 2600, 0.12, comp);
-  if (kind === 'flow') { [0, 4, 7, 12].forEach((iv, i) => tone(t + i * 0.05, 'triangle', mtof(72 + iv), 0.18, 0.12, comp)); }
-  if (kind === 'big') { noise(t, 0.3, 'bandpass', 1400, 0.2, comp); const o = tone(t, 'sine', 300, 0.25, 0.15, comp); o.frequency.exponentialRampToValueAtTime(900, t + 0.25); }
-  if (kind === 'slide') noise(t, 0.3, 'lowpass', 2400, 0.22, comp, 300);
-  if (kind === 'kick') { tone(t, 'square', 520, 0.06, 0.12, comp); noise(t, 0.08, 'highpass', 3000, 0.18, comp); }
-  if (kind === 'land') { const o = tone(t, 'sine', 120, 0.1, 0.25, comp); o.frequency.exponentialRampToValueAtTime(60, t + 0.1); }
-  if (kind === 'stumble') tone(t, 'square', 140, 0.08, 0.1, comp);
-  if (kind === 'crash') { noise(t, 0.25, 'lowpass', 900, 0.5, comp); tone(t, 'sine', 70, 0.3, 0.4, comp); }
-  if (kind === 'fail') { const o = tone(t, 'sawtooth', 420, 0.7, 0.18, comp); o.frequency.exponentialRampToValueAtTime(60, t + 0.7); }
+  if (kind === 'jump') noise(t, 0.12, 'bandpass', 2600, 0.12, sfxBus);
+  if (kind === 'flow') { [0, 4, 7, 12].forEach((iv, i) => tone(t + i * 0.05, 'triangle', mtof(72 + iv), 0.18, 0.12, sfxBus)); }
+  if (kind === 'big') { noise(t, 0.3, 'bandpass', 1400, 0.2, sfxBus); const o = tone(t, 'sine', 300, 0.25, 0.15, sfxBus); o.frequency.exponentialRampToValueAtTime(900, t + 0.25); }
+  if (kind === 'slide') noise(t, 0.3, 'lowpass', 2400, 0.22, sfxBus, 300);
+  if (kind === 'kick') { tone(t, 'square', 520, 0.06, 0.12, sfxBus); noise(t, 0.08, 'highpass', 3000, 0.18, sfxBus); }
+  if (kind === 'land') { const o = tone(t, 'sine', 120, 0.1, 0.25, sfxBus); o.frequency.exponentialRampToValueAtTime(60, t + 0.1); }
+  if (kind === 'stumble') tone(t, 'square', 140, 0.08, 0.1, sfxBus);
+  if (kind === 'crash') { noise(t, 0.25, 'lowpass', 900, 0.5, sfxBus); tone(t, 'sine', 70, 0.3, 0.4, sfxBus); }
+  if (kind === 'fail') { const o = tone(t, 'sawtooth', 420, 0.7, 0.18, sfxBus); o.frequency.exponentialRampToValueAtTime(60, t + 0.7); }
 }
 function playStep(g, step, t){
   const beat = Math.floor(step / 4), sub = step % 4, s16 = step % 16, bar = Math.floor(step / 16), ch = PROG[bar % 4], q = g.spb / 4;
@@ -598,7 +661,8 @@ function makeGame(stage, demo){
   return g;
 }
 const wBeats = g => WIN.good / g.spb;
-function grade(sec){ const a = Math.abs(sec); return a <= WIN.perfect ? 'PERFECT' : a <= WIN.great ? 'GREAT' : 'GOOD'; }
+let LAST_SEC = 0;
+function grade(sec){ LAST_SEC = sec; const a = Math.abs(sec); return a <= WIN.perfect ? 'PERFECT' : a <= WIN.great ? 'GREAT' : 'GOOD'; }
 const GRADE_COLOR = { PERFECT:C.amber, GREAT:C.teal, GOOD:C.lilac };
 function pop(g, text, color){ g.pops.push({ text, color, x:g.x, y:g.y - 70, t:0 }); }
 function judge(g, gr, weight){
@@ -606,6 +670,7 @@ function judge(g, gr, weight){
   g.counts[gr]++; g.combo++; g.maxCombo = Math.max(g.maxCombo, g.combo);
   g.score += Math.round({ PERFECT:300, GREAT:200, GOOD:100 }[gr] * weight * (1 + Math.min(g.combo, 100) / 50));
   pop(g, gr, GRADE_COLOR[gr]);
+  laneFx(g, gr, GRADE_COLOR[gr], LAST_SEC);
   // flow: 8 PERFECTs in a row fill the gauge; GREAT/GOOD keep it, any miss empties it
   if (gr === 'PERFECT' && !g.flowOn) {
     g.flow = Math.min(1, g.flow + FLOW_STEP);
@@ -613,7 +678,8 @@ function judge(g, gr, weight){
   }
 }
 const FLOW_STEP = 1 / 8;
-function breakFlow(g){ if (g.demo) return; if (g.flowOn) pop(g, 'FLOW BREAK', C.muted); g.flow = 0; g.flowOn = false; }
+function laneFx(g, label, color, sec){ (g.laneFx || (g.laneFx = [])).push({ label, color, sec, t:0 }); }
+function breakFlow(g){ if (g.demo) return; laneFx(g, 'MISS', C.danger, null); if (g.flowOn) pop(g, 'FLOW BREAK', C.muted); g.flow = 0; g.flowOn = false; }
 function stumble(g, label){ if (g.demo) return; g.combo = 0; g.counts.STUMBLE++; pop(g, label, C.danger); sfx('stumble'); breakFlow(g); }
 function dust(g, n, color, spread, dir){
   for (let i = 0; i < n; i++) g.parts.push({ x:g.x + (Math.random() - .5) * 16, y:g.y - 2, vx:((dir || 0) + (Math.random() - .7)) * spread, vy:-Math.random() * spread * .6, life:0, max:.35 + Math.random() * .3, color, size:2 + Math.random() * 2.5 });
@@ -624,7 +690,7 @@ function jump(g, seg){
   if (seg.kind === 'wall') g.arc = { kind:'towall', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y + CONTACT, peak:30 };
   else if (seg.shaft) { const k = seg.shaft.kicks[0]; g.ki = 0; g.arc = { kind:'toshaft', b0:seg.T, dur:k.t - seg.T, x0:seg.T * PPB - seg.ox, x1:k.x, y0:seg.y, y1:k.y, peak:34 }; }
   else g.arc = { kind:'jump', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y, peak:35 + 40 * seg.air, to:g.cur + 1, flip:seg.kind === 'hold' };
-  if (g.flowOn && g.arc.kind === 'jump' && !g.arc.flip && seg.air * g.spb >= 0.22) g.arc.trick = pick(Math.random, ['front', 'back', 'twist', 'front']);
+  if (g.flowOn && SET.tricks && g.arc.kind === 'jump' && !g.arc.flip && seg.air * g.spb >= 0.22) g.arc.trick = pick(Math.random, ['front', 'back', 'twist', 'front']);
   sfx(seg.kind === 'hold' ? 'big' : 'jump');
   dust(g, seg.kind === 'hold' ? 16 : 7, seg.kind === 'hold' ? C.teal : C.ink, seg.kind === 'hold' ? 240 : 120);
 }
@@ -819,6 +885,12 @@ function update(g, dt){
   g.parts = g.parts.filter(p => p.life < p.max);
   for (const p of g.pops) p.t += dt;
   g.pops = g.pops.filter(p => p.t < 0.7);
+  if (g.laneFx) { for (const f of g.laneFx) f.t += dt; g.laneFx = g.laneFx.filter(f => f.t < 0.55); }
+  // afterimages: remember recent poses while in flow
+  if (SET.ghosts && g.flowOn && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
+    (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur });
+    if (g.trail.length > 12) g.trail.shift();
+  } else if (g.trail && g.trail.length) g.trail.shift();
   while (g.noteLo < g.notes.length && (g.notes[g.noteLo].done || g.notes[g.noteLo].t < b - 2)) g.noteLo++;
 }
 
@@ -839,7 +911,7 @@ function drawSky(g){
     { par:0.12, w:64, min:70, max:230, col:'#4a2150', base:0.8, win:0 },
     { par:0.35, w:104, min:120, max:360, col:'#26133a', base:0.86, win:0.12 },
   ];
-  const fv = g.flowVis || 0;
+  const fv = SET.windows ? g.flowVis || 0 : 0;
   for (const L of layers) {
     const off = g.camX * ZOOM * L.par, k0 = Math.floor(off / L.w) - 1, baseY = H * L.base - g.camY * ZOOM * L.par * 0.25 - 60;
     for (let k = k0; k < k0 + W / L.w + 3; k++) {
@@ -877,7 +949,7 @@ function drawPlatforms(g){
     for (let wx = x1 + 14, c = 0; wx < x2 - 14; wx += 24, c++) for (let wy = top + 30, r = 0; wy < VH + 20; wy += 34, r++) {
       const h = hash(i, c, r);
       if (h < 0.22) { ctx.fillStyle = h < 0.06 ? 'rgba(95,225,217,.28)' : 'rgba(255,181,71,.22)'; ctx.fillRect(wx, wy, 9, 14); }
-      if (g.flowVis > 0.02 && h < 0.4 && ((Math.floor(g.beat) + r) & 1)) { ctx.fillStyle = h < 0.2 ? C.teal : C.amber; ctx.globalAlpha = g.flowVis * (0.15 + 0.45 * pulse); ctx.fillRect(wx, wy, 9, 14); ctx.globalAlpha = 1; }
+      if (SET.windows && g.flowVis > 0.02 && h < 0.4 && ((Math.floor(g.beat) + r) & 1)) { ctx.fillStyle = h < 0.2 ? C.teal : C.amber; ctx.globalAlpha = g.flowVis * (0.15 + 0.45 * pulse); ctx.fillRect(wx, wy, 9, 14); ctx.globalAlpha = 1; }
     }
     ctx.fillStyle = '#2a2036'; ctx.fillRect(x1, top, x2 - x1, 6);
     const edge = NOTE_COLOR[s.jn.type];
@@ -932,6 +1004,7 @@ function drawShaft(g, s, pulse){
 
 const seg2 = (x, y, ang, len) => [x + Math.sin(ang) * len, y + Math.cos(ang) * len];
 function drawRunner(g){
+  const A0 = ctx.globalAlpha;   // < 1 when drawing an afterimage
   const b = g.beat, px = g.x - g.camX, py = g.y - g.camY, seg = g.segs[g.cur];
   ctx.save(); ctx.translate(px, py);
   const facingLeft = (g.mode === 'cling' && seg.shaft.kicks[g.ki].wall === 'L') || (g.mode === 'air' && g.arc.x0 != null && g.arc.x1 < g.arc.x0);
@@ -954,8 +1027,8 @@ function drawRunner(g){
     legs = [[0.5 + 0.7 * k, 0.6 + 1.5 * k], [0.2 + 0.5 * k, 0.6 + 1.6 * k]];
     arms = [[-0.6 - 0.8 * k, -0.4], [-0.4 - 0.8 * k, -0.3]];
     if (!REDUCED) ctx.translate((Math.random() - .5) * 2 * k, 0);
-    ctx.strokeStyle = C.teal; ctx.globalAlpha = 0.35 + 0.4 * k; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, -24, 16 + 22 * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.teal; ctx.globalAlpha = A0 * (0.35 + 0.4 * k); ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, -24, 16 + 22 * k, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = A0;
   } else if (g.mode === 'wall' || g.mode === 'cling') {
     hipY = -26; lean = 0.15;
     legs = [[1.5, 1.9], [1.1, 1.6]];
@@ -996,11 +1069,23 @@ function drawRunner(g){
   ctx.restore();
 }
 
+function drawGhosts(g){
+  const tr = g.trail; if (!tr || tr.length < 3) return;
+  const keep = { x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur };
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < tr.length - 2; i += 3) {
+    Object.assign(g, tr[i]);
+    ctx.globalAlpha = 0.1 + 0.28 * (i / tr.length);
+    drawRunner(g);
+  }
+  ctx.restore();
+  Object.assign(g, keep);
+}
 function drawWorld(g){
   ctx.save();
-  const sh = g.shake && !REDUCED ? (Math.random() - .5) * g.shake : 0;
+  const sh = g.shake && SET.shake && !REDUCED ? (Math.random() - .5) * g.shake : 0;
   ctx.scale(ZOOM, ZOOM); ctx.translate(0, sh);
-  if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); drawRunner(g); }
+  if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); drawGhosts(g); drawRunner(g); }
   for (const p of g.parts) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.color; ctx.fillRect(p.x - g.camX, p.y - g.camY, p.size, p.size); }
   ctx.globalAlpha = 1; ctx.textAlign = 'center';
   for (const p of g.pops) {
@@ -1020,35 +1105,67 @@ function arrow(x, y, dir, s, col){
   ctx.restore();
 }
 function drawLane(g){
-  const b = g.beat, lx = 16, lw = W - 32, lh = 46, ly = H - lh - 14;
-  const jx = VW * 0.28 * ZOOM, scale = PPB * ZOOM, cy = ly + lh / 2;
+  const S = SET.lane, b = g.beat, lx = 16, lw = W - 32, lh = Math.round(46 * S), ly = H - lh - 14;
+  const jx = VW * 0.28 * ZOOM, scale = PPB * ZOOM * SET.laneSpeed, cy = ly + lh / 2, R = 12 * S, win = WIN.good / g.spb;
   ctx.save();
-  roundRect(lx, ly, lw, lh, 23); ctx.fillStyle = 'rgba(12,7,22,.78)'; ctx.fill();
+  roundRect(lx, ly, lw, lh, lh / 2); ctx.fillStyle = 'rgba(12,7,22,.78)'; ctx.fill();
   ctx.strokeStyle = 'rgba(255,244,230,.12)'; ctx.lineWidth = 1; ctx.stroke();
   ctx.clip();
   for (let k = Math.floor(b - jx / scale); k < b + W / scale + 1; k++) {
-    const x = jx + (k - b) * scale; ctx.fillStyle = k % 4 === 0 ? 'rgba(255,244,230,.22)' : 'rgba(255,244,230,.08)'; ctx.fillRect(x, ly + 8, 1, lh - 16);
+    const x = jx + (k - b) * scale; ctx.fillStyle = k % 4 === 0 ? 'rgba(255,244,230,.22)' : 'rgba(255,244,230,.08)'; ctx.fillRect(x, ly + 8 * S, 1, lh - 16 * S);
   }
+  const glow = (x, t) => {   // a note whose press window is open right now gets a bright halo
+    if (!SET.near || Math.abs(t - b) > win) return;
+    ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.shadowColor = C.ink; ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(x, cy, R + 5 * S, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+  };
   for (let i = g.noteLo; i < g.notes.length; i++) {
     const n = g.notes[i]; if (n.done) continue;
     const xe = jx + (n.t - b) * scale; if (jx + (n.s - b) * scale > W + 20) break;
     const col = NOTE_COLOR[n.type];
     if (n.type === 'hold') {
       let xs = jx + (n.s - b) * scale;
-      if (n.seg === g.cur && g.mode === 'charge') xs = Math.max(xs, jx);
-      roundRect(xs - 12, cy - 12, xe - xs + 24, 24, 12); ctx.fillStyle = 'rgba(95,225,217,.28)'; ctx.fill();
+      if (n.seg === g.cur && g.mode === 'charge') xs = Math.max(xs, jx); else glow(xs, n.s);
+      roundRect(xs - R, cy - R, xe - xs + 2 * R, 2 * R, R); ctx.fillStyle = 'rgba(95,225,217,.28)'; ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, cy, 8, 0, Math.PI * 2); ctx.fill();
-      ctx.beginPath(); ctx.arc(xe, cy, 12, 0, Math.PI * 2); ctx.fill();
-      arrow(xs, cy, 'up', 4.5, C.dark); arrow(xe, cy, 'up', 6, C.dark);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, cy, R * 0.67, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(xe, cy, R, 0, Math.PI * 2); ctx.fill();
+      arrow(xs, cy, 'up', 4.5 * S, C.dark); arrow(xe, cy, 'up', 6 * S, C.dark);
+      glow(xe, n.t);
     } else {
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xe, cy, 12, 0, Math.PI * 2); ctx.fill();
-      arrow(xe, cy, n.type, 6, C.dark);
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xe, cy, R, 0, Math.PI * 2); ctx.fill();
+      arrow(xe, cy, n.type, 6 * S, C.dark);
+      glow(xe, n.t);
     }
   }
   ctx.restore();
   const pulse = REDUCED ? 0 : Math.exp(-frac(b) * 6);
-  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(jx, cy, 15 + pulse * 4, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = C.ink; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(jx, cy, (15 + pulse * 4) * S, 0, Math.PI * 2); ctx.stroke();
+  // judgement effects at the hit circle
+  for (const f of g.laneFx || []) {
+    const k = f.t / 0.55, a = 1 - k;
+    ctx.save(); ctx.globalAlpha = a;
+    if (SET.hitFx === 'ring' || SET.hitFx === 'both') {
+      ctx.strokeStyle = f.color; ctx.lineWidth = 4 * a + 1; ctx.shadowColor = f.color; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(jx, cy, (15 + 32 * Math.sqrt(k)) * S, 0, Math.PI * 2); ctx.stroke();
+    }
+    if (SET.hitFx === 'burst' || SET.hitFx === 'both') {
+      ctx.fillStyle = f.color;
+      for (let j = 0; j < 12; j++) { const an = j / 12 * Math.PI * 2 + f.t, d = (14 + 40 * Math.sqrt(k)) * S, sz = 4 * S * a + 1; ctx.fillRect(jx + Math.cos(an) * d - sz / 2, cy + Math.sin(an) * d - sz / 2, sz, sz); }
+    }
+    if (SET.laneText) {
+      ctx.textAlign = 'center'; ctx.fillStyle = f.color; ctx.font = `400 ${Math.round(14 * Math.sqrt(S))}px "Dela Gothic One", sans-serif`;
+      ctx.fillText(f.label, jx, ly - 8 - 12 * k);
+      if (SET.fastSlow && f.sec != null && f.label !== 'PERFECT') {
+        ctx.font = `700 ${Math.round(11 * Math.sqrt(S))}px "JetBrains Mono", monospace`; ctx.fillStyle = f.sec < 0 ? '#7cc4ff' : '#ff9a6b';
+        ctx.fillText(f.sec < 0 ? 'FAST' : 'SLOW', jx, ly - 26 - 12 * k);
+      }
+    } else if (SET.fastSlow && f.sec != null && f.label !== 'PERFECT') {
+      ctx.textAlign = 'center'; ctx.font = `700 ${Math.round(11 * Math.sqrt(S))}px "JetBrains Mono", monospace`; ctx.fillStyle = f.sec < 0 ? '#7cc4ff' : '#ff9a6b';
+      ctx.fillText(f.sec < 0 ? 'FAST' : 'SLOW', jx, ly - 8 - 12 * k);
+    }
+    ctx.restore();
+  }
 }
 
 function drawHUD(g){
@@ -1108,7 +1225,7 @@ function startGame(stage, opts){
   opts = opts || {};
   initAudio(); actx.resume();
   if (bus) { try { bus.disconnect(); } catch(e){} }
-  bus = actx.createGain(); bus.gain.value = 0.7; bus.connect(comp);
+  bus = actx.createGain(); bus.gain.value = 0.7 * SET.music; bus.connect(comp);
   stopSong();
   G = makeGame(stage, false);
   if (stage.song) {
@@ -1226,28 +1343,84 @@ function calFinish(){
   if (d.length < 8) { $('calMsg').textContent = `押せたのが ${d.length} 回だけだったので測れませんでした。もう一度「開始」を押してください。`; return; }
   const med = d[d.length >> 1], spread = (d[Math.floor(d.length * 0.75)] - d[Math.floor(d.length * 0.25)]) / 2;
   const auto = actx.outputLatency || actx.baseLatency || 0;
-  CAL.result = Math.round(clamp((med - auto) * 1000, -100, 400) / 5) * 5;
+  CAL.result = Math.round(clamp((med - auto) * 1000, -300, 400) / 5) * 5;
   $('calMsg').textContent = `クリック音から平均 ${Math.abs(Math.round(med * 1000))} ms ${med >= 0 ? '遅れて' : '早く'}押していました（ばらつき ±${Math.round(spread * 1000)} ms）。判定オフセットを ${CAL.result > 0 ? '+' : ''}${CAL.result} ms にすると合います。` + (spread > 0.05 ? ' ばらつきが大きいので、もう一度測るとより正確です。' : '');
   $('calApply').hidden = false; $('calApply').focus();
 }
 $('calBtn').addEventListener('click', calOpen);
+const ACTION_JP = { up:'↑ ジャンプ・溜め', down:'↓ スライディング', left:'← 壁ジャンプ（左の壁）', right:'→ 壁キック・壁ジャンプ（右の壁）' };
+const keyName = c => ({ ArrowUp:'↑', ArrowDown:'↓', ArrowLeft:'←', ArrowRight:'→', Space:'Space', Enter:'Enter', ShiftLeft:'左Shift', ShiftRight:'右Shift', ControlLeft:'左Ctrl', ControlRight:'右Ctrl', AltLeft:'左Option', AltRight:'右Option', Semicolon:';', Quote:"'", Comma:',', Period:'.', Slash:'/', BracketLeft:'[', BracketRight:']' }[c]
+  || c.replace(/^Key/, '').replace(/^Digit/, '').replace(/^Numpad/, 'テンキー'));
+let KEYCAP = null, setFrom = null;
+function saveSettings(){
+  store.set('rb-settings', SET);
+  if (sfxBus) sfxBus.gain.value = SET.sfx;
+  if (bus && G && G.running && !G.ended) bus.gain.setTargetAtTime(0.7 * SET.music, actx.currentTime, 0.05);
+  if (ED.bus) ED.bus.gain.value = 0.8 * SET.music;   // ED exists by the time settings can change
+  document.documentElement.style.setProperty('--lane-space', Math.round(46 * SET.lane + 30) + 'px');
+}
+function renderKeys(){
+  $('keyRows').innerHTML = Object.keys(ACTION_JP).map(a => `<div class="set-row"><span>${ACTION_JP[a]}</span><span class="keyb">${KEYCAP === a ? 'キーを押してください（Escでやめる）' : SET.keys[a].map(keyName).join(' / ')}</span><button class="mini${KEYCAP === a ? ' wait' : ''}" data-key="${a}">${KEYCAP === a ? '待機中…' : '変更'}</button></div>`).join('');
+}
+function captureKey(code){
+  const a = KEYCAP; KEYCAP = null;
+  if (code !== 'Escape' && a) {
+    for (const k of Object.keys(SET.keys)) SET.keys[k] = SET.keys[k].filter(c => c !== code);   // one key, one action
+    SET.keys[a] = [code];
+    saveSettings();
+  }
+  renderKeys();
+}
+function renderSettings(){
+  const pct = v => Math.round(v * 100) + '%';
+  $('sMusic').value = Math.round(SET.music * 100); $('sMusicOut').textContent = pct(SET.music);
+  $('sSfx').value = Math.round(SET.sfx * 100); $('sSfxOut').textContent = pct(SET.sfx);
+  $('sLane').value = String(SET.lane); $('sSpeed').value = SET.laneSpeed; $('sSpeedOut').textContent = '×' + SET.laneSpeed;
+  $('sHit').value = SET.hitFx;
+  for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']]) $(id).checked = !!SET[k];
+  off.value = offsetMs; showOff();
+  renderKeys();
+}
+function openSettings(from){ setFrom = from; renderSettings(); $('setDlg').hidden = false; $('setClose').focus(); }
+function closeSettings(){ KEYCAP = null; $('setDlg').hidden = true; if (setFrom === 'pause') $('resume').focus(); }
+$('setOpen').addEventListener('click', () => openSettings('menu'));
+$('pauseSet').addEventListener('click', () => openSettings('pause'));
+$('setClose').addEventListener('click', closeSettings);
+$('setReset').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'もう一度押すと戻す'; setTimeout(() => { delete b.dataset.armed; b.textContent = 'すべて初期設定に戻す'; }, 3000); return; }
+  delete b.dataset.armed; b.textContent = 'すべて初期設定に戻す';
+  SET = { ...SET_DEF, keys:{ ...SET_DEF.keys } }; offsetMs = 0; store.set('rb-offset', 0); saveSettings(); renderSettings();
+});
+$('keyReset').addEventListener('click', () => { SET.keys = { ...SET_DEF.keys }; KEYCAP = null; saveSettings(); renderKeys(); });
+$('keyRows').addEventListener('click', e => { const b = e.target.closest('[data-key]'); if (!b) return; KEYCAP = KEYCAP === b.dataset.key ? null : b.dataset.key; renderKeys(); });
+$('sMusic').addEventListener('input', e => { SET.music = e.target.value / 100; $('sMusicOut').textContent = e.target.value + '%'; saveSettings(); });
+$('sSfx').addEventListener('input', e => { SET.sfx = e.target.value / 100; $('sSfxOut').textContent = e.target.value + '%'; saveSettings(); });
+$('sSfx').addEventListener('change', () => { initAudio(); actx.resume(); tone(actx.currentTime + 0.01, 'triangle', 880, 0.12, 0.2, sfxBus); });
+$('sLane').addEventListener('change', e => { SET.lane = +e.target.value; saveSettings(); });
+$('sSpeed').addEventListener('input', e => { SET.laneSpeed = +e.target.value; $('sSpeedOut').textContent = '×' + SET.laneSpeed; saveSettings(); });
+$('sHit').addEventListener('change', e => { SET.hitFx = e.target.value; saveSettings(); });
+for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']])
+  $(id).addEventListener('change', e => { SET[k] = e.target.checked; saveSettings(); });
+document.documentElement.style.setProperty('--lane-space', Math.round(46 * SET.lane + 30) + 'px');
 $('calStart').addEventListener('click', calStart);
 $('calApply').addEventListener('click', () => { offsetMs = CAL.result; off.value = offsetMs; showOff(); store.set('rb-offset', offsetMs); $('cal').hidden = true; });
 $('calClose').addEventListener('click', () => { CAL.on = false; clearTimeout(CAL.timer); $('cal').hidden = true; });
 $('cal').addEventListener('pointerdown', e => { if (CAL.on && !e.target.closest('button')) { e.preventDefault(); calTap(); } });
 
-const KEYMAP = { ArrowUp:'up', KeyW:'up', Space:'up', ArrowDown:'down', KeyS:'down', ArrowRight:'right', KeyD:'right', ArrowLeft:'left', KeyA:'left' };
 window.addEventListener('keydown', e => {
-  if (!$('cal').hidden) { if (CAL.on && (e.code === 'Space' || KEYMAP[e.code])) { e.preventDefault(); if (!e.repeat) calTap(); } return; }
+  if (KEYCAP) { e.preventDefault(); captureKey(e.code); return; }
+  if (!$('cal').hidden) { if (CAL.on && (e.code === 'Space' || keyDir(e.code))) { e.preventDefault(); if (!e.repeat) calTap(); } return; }
+  if (!$('setDlg').hidden) { if (e.code === 'Escape') closeSettings(); return; }
   if (ED.open) return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (G && !G.demo && G.running) setPause(!paused); return; }
   if (!$('over').hidden) { if (performance.now() - overAt > 600 && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); startGame(lastStage, lastOpts); } return; }
-  const dir = KEYMAP[e.code];
+  const dir = keyDir(e.code);
   if (!dir || !G || G.demo || paused) return;
   e.preventDefault();
   if (!e.repeat) press(dir);
 });
-window.addEventListener('keyup', e => { if (KEYMAP[e.code] === 'up') release(); });
+window.addEventListener('keyup', e => { if (keyDir(e.code) === 'up') release(); });
 cv.addEventListener('pointerdown', e => { if (G && !G.demo) { e.preventDefault(); cv.setPointerCapture(e.pointerId); press('up'); } });
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
@@ -1607,7 +1780,7 @@ function edPlay(){
   initAudio(); actx.resume();
   const spb = spbE(), off = Math.max(0, ED.rec.phase + ED.cursor * spb);
   if (off >= ED.buffer.duration - 0.05) ED.cursor = 0;
-  ED.bus = actx.createGain(); ED.bus.gain.value = 0.8; ED.bus.connect(comp);
+  ED.bus = actx.createGain(); ED.bus.gain.value = 0.8 * SET.music; ED.bus.connect(comp);
   ED.src = actx.createBufferSource(); ED.src.buffer = ED.buffer; ED.src.connect(ED.bus);
   ED.t0 = actx.currentTime + 0.08; ED.src.start(ED.t0, Math.max(0, ED.rec.phase + ED.cursor * spb));
   ED.b0 = (Math.max(0, ED.rec.phase + ED.cursor * spb) - ED.rec.phase) / spb;
