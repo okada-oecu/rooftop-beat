@@ -107,6 +107,10 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .ed-foot{border-top:1px solid rgba(255,244,230,.1);padding-bottom:calc(10px + env(safe-area-inset-bottom,0px))}
 .ed-btn{all:unset;cursor:pointer;padding:7px 11px;border-radius:4px;border:1px solid rgba(255,244,230,.22);font-weight:700;font-size:13px;white-space:nowrap}
 .ed-btn.primary{background:var(--amber);color:#1a0f08;border-color:var(--amber)}
+.ed-btn.tool.on{background:rgba(95,225,217,.2);border-color:var(--teal);color:var(--ink)}
+.ed-btn[disabled]{opacity:.38;cursor:default}
+.ed-group{display:inline-flex;gap:6px;flex-wrap:wrap;align-items:center}
+#edCanvas.selecting{cursor:default}
 .field{display:flex;align-items:center;gap:6px;color:var(--muted);white-space:nowrap}
 .field input,.field select{background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:6px 8px;font:500 13px var(--mono);width:84px;box-sizing:border-box}
 .field input[type=range]{width:110px;padding:0;border:0;accent-color:var(--amber)}
@@ -298,6 +302,8 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     <label class="field"><input type="checkbox" id="edClick" checked> メトロノーム</label>
     <label class="field"><input type="checkbox" id="edRec"> 録音（再生中に ↑↓→ で置く・↑長押しで溜め）</label>
     <label class="field">拡大 <input type="range" id="edZoom" min="16" max="200" value="64"></label>
+    <span class="ed-group" role="group" aria-label="道具"><button class="ed-btn tool on" id="edToolPen" title="クリックでノーツを置く・消す（Shift＋ドラッグで範囲選択）">置く</button><button class="ed-btn tool" id="edToolSel" title="ドラッグで範囲選択、選んだノーツはドラッグで移動">選ぶ</button></span>
+    <span class="ed-group" role="group" aria-label="選択したノーツ"><button class="ed-btn" id="edCopy" title="⌘C">コピー</button><button class="ed-btn" id="edCut" title="⌘X">切り取り</button><button class="ed-btn" id="edPaste" title="⌘V：再生位置に貼り付け">貼り付け</button><button class="ed-btn" id="edDup" title="⌘D：選択のすぐ後ろに複製">複製</button><button class="ed-btn" id="edDelSel" title="Delete">削除</button></span>
     <button class="ed-btn" id="edUndo">元に戻す</button>
     <button class="ed-btn" id="edClear">全消去</button>
     <button class="ed-btn" id="edJson">書き出し / 読み込み</button>
@@ -1866,7 +1872,7 @@ $('pubGo').addEventListener('click', async () => {
 
 /* ---------------- chart editor ---------------- */
 const ROWS = [ { type:'up', label:'↑ ジャンプ' }, { type:'hold', label:'↑ 溜め' }, { type:'down', label:'↓ スライド' }, { type:'right', label:'→ 壁キック' }, { type:'left', label:'← 壁ジャンプ' } ];
-const ED = { snap:2, open:false, rec:null, buffer:null, notes:[], bad:new Map(), errors:[], bars:[], scroll:-2, ppb:64, cursor:0, playing:false, src:null, bus:null,
+const ED = { tool:'pen', sel:new Set(), box:null, moving:null, clip:store.get('rb-clip', null), snap:2, open:false, rec:null, buffer:null, notes:[], bad:new Map(), errors:[], bars:[], scroll:-2, ppb:64, cursor:0, playing:false, src:null, bus:null,
   t0:0, b0:0, hist:[], redo:[], drag:null, hover:null, upAt:null, schedBeat:0, schedNote:0, saveTimer:0, taps:[], W:0, H:0 };
 const ecv = $('edCanvas'), ectx = ecv.getContext('2d');
 const GUT = 108, RULER = 22, STRIP = 34;
@@ -1880,13 +1886,13 @@ function edResize(){
 }
 function openEditor(rec, buffer, msg){
   stopSong(); G = null;
-  Object.assign(ED, { open:true, rec, buffer, notes: rec.notes.map(n => ({ ...n })), hist:[], redo:[], cursor:0, scroll:-2 });
+  Object.assign(ED, { open:true, rec, buffer, notes: rec.notes.map(n => ({ ...n })), hist:[], redo:[], cursor:0, scroll:-2, sel:new Set(), box:null, moving:null });
   $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = true; $('pad').hidden = true;
   $('editor').hidden = false;
   $('edTitle').value = rec.title; $('edBpm').value = rec.bpm; $('edPhase').value = Math.round(rec.phase * 1000);
   $('edDiff').value = String(rec.diff);
   try { ED.snap = +localStorage.getItem('rb-snap') || 2; } catch(e) {} $('edSnap').value = String(ED.snap);
-  edResize(); edRecalc(); edStatus(msg || '');
+  edResize(); edRecalc(); edStatus(msg || ''); edSelInfo();
 }
 function closeEditor(){
   edStop(); edSave(true);
@@ -1910,7 +1916,7 @@ function edChange(fn){
 function edUndo(redo){
   const from = redo ? ED.redo : ED.hist, to = redo ? ED.hist : ED.redo;
   if (!from.length) return;
-  to.push(JSON.stringify(ED.notes)); ED.notes = JSON.parse(from.pop()); edRecalc(); edSave();
+  to.push(JSON.stringify(ED.notes)); ED.notes = JSON.parse(from.pop()); ED.sel.clear(); edRecalc(); edSave();
 }
 function edSave(now){
   clearTimeout(ED.saveTimer);
@@ -2002,7 +2008,7 @@ function edDraw(){
     c.fillStyle = 'rgba(255,244,230,.08)'; c.fillRect(GUT, y, W2 - GUT, 1);
   });
   // hover ghost
-  if (ED.hover && !ED.drag) {
+  if (ED.hover && !ED.drag && ED.tool === 'pen' && !ED.box) {
     const { ri, q } = ED.hover, x = edX(q), y = rowTop + ri * rowH + rowH / 2;
     c.strokeStyle = NOTE_COLOR[ROWS[ri].type]; c.globalAlpha = 0.5; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 10, 0, Math.PI * 2); c.stroke(); c.globalAlpha = 1;
   }
@@ -2022,6 +2028,23 @@ function edDraw(){
       edArrow(c, x, y, n.type, rad * 0.5);
     }
   }
+  // selection: outline the chosen notes, and the box being dragged
+  if (ED.sel.size) {
+    c.save(); c.strokeStyle = C.ink; c.lineWidth = 2; c.shadowColor = C.teal; c.shadowBlur = 8;
+    for (const n of ED.sel) {
+      if (n.t < b0 - 1 || n.s > b1 + 1) continue;
+      const ri = ROWS.findIndex(r => r.type === n.type), y = rowTop + ri * rowH + rowH / 2, rad = Math.min(12, rowH * 0.3) + 4;
+      if (n.type === 'hold') { const xs = edX(n.s), xe2 = edX(n.t); c.strokeRect(xs - rad, y - rad, xe2 - xs + 2 * rad, 2 * rad); }
+      else { c.beginPath(); c.arc(edX(n.s), y, rad, 0, Math.PI * 2); c.stroke(); }
+    }
+    c.restore();
+  }
+  if (ED.box) {
+    const bx = ED.box, x0 = edX(Math.min(bx.b0, bx.b1)), x1 = edX(Math.max(bx.b0, bx.b1));
+    const y0 = rowTop + Math.floor(Math.min(bx.r0, bx.r1)) * rowH, y1 = rowTop + (Math.floor(Math.max(bx.r0, bx.r1)) + 1) * rowH;
+    c.fillStyle = 'rgba(95,225,217,.12)'; c.fillRect(x0, y0, x1 - x0, y1 - y0);
+    c.strokeStyle = C.teal; c.setLineDash([5, 4]); c.lineWidth = 1.5; c.strokeRect(x0, y0, x1 - x0, y1 - y0); c.setLineDash([]);
+  }
   // labels
   c.fillStyle = '#1d1233'; c.fillRect(0, 0, GUT, H2);
   c.textAlign = 'left'; c.font = '700 13px "Zen Kaku Gothic New", sans-serif';
@@ -2037,19 +2060,89 @@ function edArrow(c, x, y, dir, s){
   c.strokeStyle = C.dark; c.lineWidth = 2.4; c.lineCap = 'round'; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(-s, 0); c.lineTo(s, 0); c.moveTo(s * 0.15, -s * 0.8); c.lineTo(s, 0); c.lineTo(s * 0.15, s * 0.8); c.stroke(); c.restore();
 }
+function edNoteAt(h){
+  const type = ROWS[h.ri].type, tol = Math.max(0.12, 14 / ED.ppb);
+  return ED.notes.find(n => n.type === type && (type === 'hold' ? h.beat >= n.s - tol && h.beat <= n.t + tol : Math.abs(n.s - h.beat) <= tol));
+}
+function edSelInfo(){
+  const n = ED.sel.size, has = !!(ED.clip && ED.clip.notes.length);
+  for (const id of ['edCopy', 'edCut', 'edDup', 'edDelSel']) $(id).disabled = !n;
+  $('edPaste').disabled = !has;
+  $('edToolPen').classList.toggle('on', ED.tool === 'pen'); $('edToolSel').classList.toggle('on', ED.tool === 'select');
+  ecv.classList.toggle('selecting', ED.tool === 'select');
+  if (n) edStatus(`${n} 個選択中 — ⌘C コピー / ⌘X 切り取り / ⌘D 複製 / Delete 削除 / ⌥←→ で動かす / ドラッグで移動`);
+}
+// clipboard keeps note timing relative to the first selected note; it survives switching songs
+function edCopy(cut){
+  if (!ED.sel.size) return edStatus('先にノーツを選んでください（「選ぶ」でドラッグ、または Shift＋ドラッグ）。');
+  const list = [...ED.sel], base = Math.min(...list.map(n => n.s)), end = Math.max(...list.map(n => n.t));
+  ED.clip = { notes:list.map(n => ({ type:n.type, s:n.s - base, t:n.t - base })), len:Math.floor(end - base + 1e-6) + 1 };
+  store.set('rb-clip', ED.clip);
+  if (cut) { edChange(() => { ED.notes = ED.notes.filter(n => !ED.sel.has(n)); }); ED.sel.clear(); }
+  edSelInfo();
+  edStatus(`${list.length} 個を${cut ? '切り取り' : 'コピーし'}ました。再生位置を合わせて ⌘V で貼り付け（別の曲にも貼れます）。`);
+}
+function edPasteAt(base, label){
+  if (!ED.clip || !ED.clip.notes.length) return edStatus('コピーしたノーツがありません。');
+  base = Math.max(0, snapB(base));
+  const added = ED.clip.notes.map(n => ({ type:n.type, s:base + n.s, t:base + n.t }));
+  edChange(() => { for (const n of added) clearAt(n.s, n.type === 'hold' ? n.t : null); ED.notes.push(...added); });
+  ED.sel = new Set(added);
+  ED.cursor = base + ED.clip.len;
+  if (edX(ED.cursor) > ED.W - 40 || edX(base) < GUT) ED.scroll = base - 2;
+  edSelInfo();
+  edStatus(`${added.length} 個を${label}（${where(base)}から）。続けて ⌘V でその後ろに並べられます。`);
+}
+function edPaste(){ edPasteAt(ED.cursor, '貼り付けました'); }
+function edDuplicate(){
+  if (!ED.sel.size) return;
+  const keep = ED.clip; edCopy(false);
+  const list = [...ED.sel], base = Math.min(...list.map(n => n.s));
+  edPasteAt(base + ED.clip.len, '複製しました');
+  if (keep) { ED.clip = keep; store.set('rb-clip', keep); }
+}
+function edDeleteSel(){
+  if (!ED.sel.size) return;
+  const k = ED.sel.size; edChange(() => { ED.notes = ED.notes.filter(n => !ED.sel.has(n)); }); ED.sel.clear(); edSelInfo(); edStatus(`${k} 個を削除しました。`);
+}
+function edNudge(d){
+  if (!ED.sel.size) return;
+  const minS = Math.min(...[...ED.sel].map(n => n.s)); d = Math.max(-minS, d); if (!d) return;
+  edChange(() => { for (const n of ED.sel) { n.s += d; n.t += d; } });
+}
+$('edToolPen').addEventListener('click', () => { ED.tool = 'pen'; edSelInfo(); });
+$('edToolSel').addEventListener('click', () => { ED.tool = 'select'; edSelInfo(); edStatus('ドラッグで範囲選択。Shift で追加、選んだノーツはドラッグで移動できます。'); });
+$('edCopy').addEventListener('click', () => edCopy(false));
+$('edCut').addEventListener('click', () => edCopy(true));
+$('edPaste').addEventListener('click', edPaste);
+$('edDup').addEventListener('click', edDuplicate);
+$('edDelSel').addEventListener('click', edDeleteSel);
 function edHit(e){
   const r = ecv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
   const rowTop = RULER + STRIP, rowH = Math.max(30, (ED.H - rowTop - 6) / ROWS.length);
   const beat = ED.scroll + (x - GUT) / ED.ppb, q = Math.max(0, snapB(beat));
   if (x < GUT) return null;
   if (y < rowTop) return { ruler:true, q, beat };
-  const ri = Math.floor((y - rowTop) / rowH); if (ri < 0 || ri >= ROWS.length) return null;
-  return { ri, q, beat };
+  const rf = clamp((y - rowTop) / rowH, 0, ROWS.length - 0.001), ri = Math.floor((y - rowTop) / rowH);
+  if (ri < 0 || ri >= ROWS.length) return { ri:-1, rf, q, beat, out:true };
+  return { ri, rf, q, beat };
 }
 ecv.addEventListener('pointerdown', e => {
   const h = edHit(e); if (!h) return;
   ecv.setPointerCapture(e.pointerId);
   if (h.ruler) { ED.drag = null; ED.scrub = true; const was = ED.playing; edStop(); ED.cursor = h.q; ED.resume = was; return; }
+  if (ED.tool === 'select' || e.shiftKey) {
+    const hitN = h.out ? null : edNoteAt(h);
+    if (hitN && ED.tool === 'select') {
+      if (e.shiftKey) { if (ED.sel.has(hitN)) ED.sel.delete(hitN); else ED.sel.add(hitN); edSelInfo(); return; }
+      if (!ED.sel.has(hitN)) { ED.sel = new Set([hitN]); }
+      ED.moving = { from:h.beat, d:0, orig:new Map([...ED.sel].map(n => [n, { s:n.s, t:n.t }])) };
+      edSelInfo(); return;
+    }
+    ED.box = { b0:h.beat, b1:h.beat, r0:h.rf, r1:h.rf, add:e.shiftKey && ED.tool === 'select' };
+    return;
+  }
+  if (h.out) return;
   const type = ROWS[h.ri].type;
   if (type === 'hold') {
     const hit = ED.notes.find(n => n.type === 'hold' && h.q >= n.s - 0.01 && h.q <= n.t + 0.01);
@@ -2064,11 +2157,36 @@ ecv.addEventListener('pointermove', e => {
   const h = edHit(e);
   if (ED.scrub && h) { ED.cursor = h.q; const view = (ED.W - GUT) / ED.ppb; if (h.q > ED.scroll + view * 0.9 || h.q < ED.scroll + view * 0.05) ED.scroll = h.q - view * 0.5; return; }
   if (ED.drag && h) { ED.drag.note.t = Math.max(ED.drag.note.s + 0.5, snapB(h.beat)); return; }
-  ED.hover = h && !h.ruler ? h : null;
+  if (ED.box && h) { ED.box.b1 = h.beat; ED.box.r1 = h.rf; return; }
+  if (ED.moving && h) {
+    const minS = Math.min(...[...ED.moving.orig.values()].map(o => o.s));
+    const d = Math.max(-minS, Math.round((h.beat - ED.moving.from) * ED.snap) / ED.snap);
+    ED.moving.d = d;
+    for (const [n, o] of ED.moving.orig) { n.s = o.s + d; n.t = o.t + d; }
+    return;
+  }
+  ED.hover = h && !h.ruler && !h.out ? h : null;
 });
 const edUp = () => {
   if (ED.scrub) { ED.scrub = false; if (ED.resume) edPlay(); }
   if (ED.drag) { const n = ED.drag.note; ED.drag = null; edChange(() => addNote2('hold', n.s, n.t)); }
+  if (ED.box) {
+    const bx = ED.box; ED.box = null;
+    const lo = Math.min(bx.b0, bx.b1), hi = Math.max(bx.b0, bx.b1), r0 = Math.floor(Math.min(bx.r0, bx.r1)), r1 = Math.floor(Math.max(bx.r0, bx.r1));
+    const pad = 6 / ED.ppb;
+    const hits = ED.notes.filter(n => { const ri = ROWS.findIndex(r => r.type === n.type); return ri >= r0 && ri <= r1 && n.t >= lo - pad && n.s <= hi + pad; });
+    if (!bx.add) ED.sel = new Set();
+    hits.forEach(n => ED.sel.add(n));
+    edSelInfo();
+  }
+  if (ED.moving) {
+    const mv = ED.moving; ED.moving = null;
+    if (mv.d) {
+      for (const [n, o] of mv.orig) { n.s = o.s; n.t = o.t; }   // put back, then apply as one undoable change
+      edChange(() => { for (const n of mv.orig.keys()) { n.s += mv.d; n.t += mv.d; } });
+      edStatus(`${mv.orig.size} 個のノーツを ${mv.d > 0 ? '+' : ''}${mv.d} 拍動かしました`);
+    }
+  }
 };
 ecv.addEventListener('pointerup', edUp); ecv.addEventListener('pointercancel', edUp);
 ecv.addEventListener('pointerleave', () => { ED.hover = null; });
@@ -2172,9 +2290,18 @@ window.addEventListener('keydown', e => {
   if (!ED.open || !$('jsonDlg').hidden) return;
   const tag = (e.target.tagName || '').toLowerCase();
   if (tag === 'input' && e.target.type !== 'checkbox' && e.target.type !== 'range' || tag === 'select' || tag === 'textarea') return;
-  if ((e.metaKey || e.ctrlKey) && e.code === 'KeyZ') { e.preventDefault(); edUndo(e.shiftKey); return; }
+  const mod = e.metaKey || e.ctrlKey;
+  if (mod && e.code === 'KeyZ') { e.preventDefault(); edUndo(e.shiftKey); return; }
+  if (mod && e.code === 'KeyC') { e.preventDefault(); edCopy(false); return; }
+  if (mod && e.code === 'KeyX') { e.preventDefault(); edCopy(true); return; }
+  if (mod && e.code === 'KeyV') { e.preventDefault(); edPaste(); return; }
+  if (mod && e.code === 'KeyD') { e.preventDefault(); edDuplicate(); return; }
+  if (mod && e.code === 'KeyA') { e.preventDefault(); ED.sel = new Set(ED.notes); edSelInfo(); return; }
+  if ((e.code === 'Delete' || e.code === 'Backspace') && ED.sel.size) { e.preventDefault(); edDeleteSel(); return; }
+  if (e.altKey && (e.code === 'ArrowLeft' || e.code === 'ArrowRight') && ED.sel.size) { e.preventDefault(); edNudge((e.code === 'ArrowLeft' ? -1 : 1) / ED.snap); return; }
+  if (e.code === 'KeyV' && !mod) { ED.tool = ED.tool === 'select' ? 'pen' : 'select'; edSelInfo(); return; }
   if (e.code === 'Space') { e.preventDefault(); edPlay(); return; }
-  if (e.code === 'Escape') { if (ED.playing) edStop(); return; }
+  if (e.code === 'Escape') { if (ED.playing) edStop(); else if (ED.sel.size) { ED.sel.clear(); edSelInfo(); edStatus(''); } return; }
   const rec = $('edRec').checked && ED.playing;
   if (rec && !e.repeat && (e.code === 'ArrowUp' || e.code === 'ArrowDown' || e.code === 'ArrowRight' || e.code === 'ArrowLeft')) {
     e.preventDefault();
