@@ -34,6 +34,27 @@ GitHub Pages で公開した URL を開くだけで遊べます。
 - `analyzeBuffer` … 取り込んだ曲の BPM と拍の位置の自動解析
 - エディタは `ED` で始まる関数群
 
+## みんなの譜面（Supabase）
+
+エディタの「みんなに公開」で譜面と曲を上げると、メニューの「みんなの譜面」から誰でも遊べます。サーバーには [Supabase](https://supabase.com)（無料枠）を使います。
+
+### 最初の設定（1回だけ）
+
+1. Supabase にサインアップして、新しいプロジェクトを作る（リージョンは Tokyo がおすすめ）。
+2. 左メニューの **SQL Editor** を開き、`supabase/setup.sql` の中身を全部貼り付けて **Run**。表・曲置き場・ルールがまとめて作られます。
+3. **Project Settings → API**（または「Connect」）で次の2つをコピーする。
+   - Project URL（`https://xxxx.supabase.co`）
+   - 公開用のキー（`anon` / `public`、または `sb_publishable_` で始まるもの）。**`service_role` / `secret` のキーは使わないでください。**
+4. `rooftop-beat.html` の `const SUPABASE = { url, key }` に貼り付けて push。
+
+### しくみ
+
+- 譜面は `charts` 表、曲ファイルは `songs` という置き場（1曲15MBまで）に入ります。
+- アカウントなしで誰でも見る・遊ぶ・公開ができます。公開をやめられるのは、公開したのと同じブラウザだけです（ブラウザに保存した合言葉で確認）。
+- 曲ファイルも誰でも再生・ダウンロードできる状態になるので、公開してよい曲だけにしてください。
+- 荒らしが出たら、Supabase の Table Editor で `charts` の行を消せば一覧から消えます。
+- claude.ai 版ではこの機能は使えません（外部のサーバーに接続できないため）。公開URL かローカルで使ってください。
+
 ## 保存について
 
 マイ曲（取り込んだ曲と譜面）はブラウザの中に保存されます。公開URL・`localhost:8765`・claude.ai 版では、それぞれ別々に保存されます（ベストスコアや判定オフセットも同様）。

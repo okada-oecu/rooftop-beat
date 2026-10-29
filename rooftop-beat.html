@@ -98,7 +98,10 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 #edStatus{color:var(--teal);font-size:12px;flex-basis:100%}
 #edErrors{display:flex;flex-wrap:wrap;gap:6px;max-height:84px;overflow:auto;padding:8px 16px;background:#1d1233;font-size:12px;color:var(--muted)}
 #edErrors button{all:unset;cursor:pointer;padding:3px 8px;border-radius:3px;background:rgba(255,93,115,.14);color:#ffb3bf}
-#jsonDlg{z-index:6;background:rgba(10,6,18,.6)}
+#jsonDlg,#pubDlg{z-index:6;background:rgba(10,6,18,.6)}
+#pubDlg .field input{width:min(320px,62vw);font-family:var(--body)}
+.mini.tab.on{background:rgba(95,225,217,.18);border-color:var(--teal);color:var(--ink)}
+.mini[hidden]{display:none}
 #jsonText{width:100%;min-height:160px;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:10px;font:12px/1.5 var(--mono)}
 #pad{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
 #pad button{width:64px;height:64px;border-radius:50%;border:2px solid currentColor;background:rgba(18,11,32,.55);font:700 24px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
@@ -134,6 +137,11 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <p class="hint">手持ちの音楽ファイルを選ぶと、BPMと拍の位置を自動で解析して譜面を作ります。エディタで1つずつ置き直したり、曲を流しながら矢印キーで打ち込んだりできます。</p>
       <p class="hint" id="mineNote"></p>
       <div id="mineList" class="stats" style="grid-template-columns:1fr"></div>
+    </section>
+    <section class="mine" id="shared">
+      <div class="mine-head"><h3>みんなの譜面</h3><div class="row" id="sharedTabs"><button class="mini tab" id="sortNew">新着</button><button class="mini tab" id="sortPop">人気</button><button class="mini" id="sharedReload">更新</button></div></div>
+      <p class="hint" id="sharedNote"></p>
+      <div id="sharedList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
     <label class="offset" for="offset">判定オフセット
       <input id="offset" type="range" min="-100" max="400" step="5" value="0">
@@ -198,6 +206,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     <label class="field">難しさ <select id="edDiff"><option value="0.35">やさしい</option><option value="0.6">ふつう</option><option value="0.85">むずかしい</option></select></label>
     <button class="ed-btn" id="edAuto">自動で譜面を作る</button>
     <span class="spacer"></span>
+    <button class="ed-btn" id="edPublish">みんなに公開</button>
     <button class="ed-btn" id="edTestAuto">オートで確認</button>
     <button class="ed-btn primary" id="edTest">テストプレイ</button>
     <button class="ed-btn" id="edClose">閉じる</button>
@@ -218,6 +227,18 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     <span class="mono" id="edCount"></span>
     <span class="mono" id="edPos"></span>
     <span class="mono" id="edSaved"></span>
+  </div>
+</div>
+
+<div id="pubDlg" class="overlay" hidden>
+  <div class="panel">
+    <p class="eyebrow">PUBLISH</p>
+    <h2 style="font-size:28px">みんなに公開</h2>
+    <label class="field">曲名 <input id="pubTitle" type="text" maxlength="60"></label>
+    <label class="field">作者名 <input id="pubAuthor" type="text" maxlength="24" placeholder="ニックネーム"></label>
+    <p class="hint">譜面と一緒に<b>曲ファイルも公開</b>され、誰でも再生・ダウンロードできる状態になります。自分で作った曲か、公開してよいと許可を得た曲だけにしてください。</p>
+    <p class="hint" id="pubMsg"></p>
+    <div class="row"><button class="btn primary" id="pubGo">公開する</button><button class="btn" id="pubClose">閉じる</button></div>
   </div>
 </div>
 
@@ -1153,7 +1174,7 @@ function toMenu(){
   paused = false;
   G = makeGame(STAGES.find(s => s.id === 'neon'), true); G.clock = demoClock(G);
   $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = true; $('pad').hidden = true; $('menu').hidden = false;
-  renderStages(); renderMine();
+  renderStages(); renderMine(); renderShared();
 }
 function setPause(on){
   if (!G || G.demo || !G.running) return;
@@ -1341,7 +1362,7 @@ const decode = ab => new Promise((ok, ng) => { const p = actx.decodeAudioData(ab
 async function bufferOf(rec){ initAudio(); if (!decoded.has(rec.id)) decoded.set(rec.id, await decode(rec.audio.slice(0))); return decoded.get(rec.id); }
 const DIFFS = [{ v:0.35, jp:'やさしい' }, { v:0.6, jp:'ふつう' }, { v:0.85, jp:'むずかしい' }];
 function songOf(rec, buffer){
-  const bars = barsFor(rec.an, rec.bpm, rec.phase);
+  const bars = rec.an.rmsEnv ? barsFor(rec.an, rec.bpm, rec.phase) : [];   // shared charts carry no loudness data
   const s = { bpm:rec.bpm, phase:rec.phase, phaseLive:rec.phase, maxD:rec.diff, bars, buffer, state:'ready',
     endBeat: Math.max(8, Math.floor((rec.an.dur - rec.phase) * rec.bpm / 60) - 2) };
   s.drops = bars.map((e, i) => (e < 0.5 && bars[i + 1] > 0.65) ? (i + 1) * 4 : null).filter(v => v != null);
@@ -1397,6 +1418,124 @@ $('fileIn').addEventListener('change', async e => {
     renderMine();
     openEditor(rec, buffer, `解析しました：${rec.bpm} BPM、最初の拍 ${Math.round(rec.phase * 1000)} ms。自動で譜面を作ったので、再生して確かめてから直してください。`);
   } catch(err) { renderMine('このファイルは読み込めませんでした。mp3 / wav / m4a などの音声ファイルを選んでください。'); }
+});
+
+/* ---------------- shared charts ("みんなの譜面", Supabase) ----------------
+   Set url/key after running supabase/setup.sql (Supabase → Project Settings → API).
+   Both values are meant to be public; the table rules in setup.sql decide what anyone may do. */
+const SUPABASE = { url: 'https://oucazrghojyboxmkbqiw.supabase.co', key: 'sb_publishable_-Uozk-t2665B2HOtqP0cIA_2ma9aEec' };
+const shareOn = () => !!(SUPABASE.url && SUPABASE.key);
+const supaBase = () => SUPABASE.url.replace(/\/+$/, '');
+function supaHeaders(extra){ const h = { apikey: SUPABASE.key, ...(extra || {}) }; if (SUPABASE.key.startsWith('eyJ')) h.Authorization = 'Bearer ' + SUPABASE.key; return h; }
+async function supa(path, opts){
+  opts = opts || {};
+  const r = await fetch(supaBase() + path, { ...opts, headers: supaHeaders(opts.headers) });
+  const t = await r.text();
+  if (!r.ok) throw new Error(r.status + ' ' + t.slice(0, 200));
+  return t ? JSON.parse(t) : null;
+}
+const SHARE = { list: [], sort: 'new', state: 'idle', mine: new Set(store.get('rb-shared', [])) };
+function ownerToken(){
+  let t = store.get('rb-owner', null);
+  if (!t) { const a = new Uint8Array(32); crypto.getRandomValues(a); t = [...a].map(x => x.toString(16).padStart(2, '0')).join(''); store.set('rb-owner', t); }
+  return t;
+}
+async function sha256hex(s){ const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)); return [...new Uint8Array(d)].map(x => x.toString(16).padStart(2, '0')).join(''); }
+async function loadShared(){
+  if (!shareOn()) { renderShared(); return; }
+  SHARE.state = 'loading'; renderShared();
+  try {
+    SHARE.list = await supa(`/rest/v1/charts?select=id,created_at,title,author,bpm,duration,note_count,plays,audio_path&order=${SHARE.sort === 'new' ? 'created_at' : 'plays'}.desc&limit=60`);
+    SHARE.state = 'ready';
+  } catch(e) { SHARE.state = 'error'; }
+  renderShared();
+}
+function renderShared(msg){
+  const box = $('sharedList');
+  $('sharedTabs').hidden = !shareOn();
+  if (!shareOn()) { $('sharedNote').textContent = 'サーバーがまだつながっていません（README の「みんなの譜面」を参照）。'; box.innerHTML = ''; return; }
+  $('sharedNote').textContent = msg || ({ loading:'読み込み中…', error:'一覧を読み込めませんでした。通信状況を確かめて「更新」を押してください。' }[SHARE.state]
+    || (SHARE.list.length ? '' : 'まだ譜面がありません。マイ曲のエディタで「みんなに公開」を押すと、ここに並びます。'));
+  box.innerHTML = SHARE.state === 'ready' ? SHARE.list.map((c, i) => `<div class="mysong"><div class="meta"><b>${esc(c.title)}</b><span>by ${esc(c.author)} · ${Math.round(c.bpm)} BPM · ${fmtTime(c.duration)} · ノーツ ${c.note_count} · ${c.plays} 回プレイ · BEST ${store.get('rb-best-my-s-' + c.id, 0).toLocaleString()}</span></div>
+    <div class="row"><button class="mini primary" data-act="play" data-i="${i}">遊ぶ</button>${SHARE.mine.has(c.id) ? `<button class="mini danger" data-act="del" data-i="${i}">公開をやめる</button>` : ''}</div></div>`).join('') : '';
+  $('sortNew').classList.toggle('on', SHARE.sort === 'new'); $('sortPop').classList.toggle('on', SHARE.sort === 'pop');
+}
+const notesFromRows = rows => rows.map(a => ({ type:a[0], s:+a[1], t:+(a[2] != null ? a[2] : a[1]) })).filter(n => ['up','hold','down','right','left'].includes(n.type) && isFinite(n.s) && isFinite(n.t) && n.s >= 0);
+const notesToRows = ns => ns.map(n => n.type === 'hold' ? [n.type, n.s, n.t] : [n.type, n.s]);
+$('sortNew').addEventListener('click', () => { SHARE.sort = 'new'; loadShared(); });
+$('sortPop').addEventListener('click', () => { SHARE.sort = 'pop'; loadShared(); });
+$('sharedReload').addEventListener('click', loadShared);
+$('sharedList').addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const c = SHARE.list[+b.dataset.i]; if (!c) return;
+  if (b.dataset.act === 'del') {
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'もう一度押すと公開をやめる'; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = '公開をやめる'; } }, 3000); return; }
+    b.disabled = true;
+    try {
+      const path = await supa('/rest/v1/rpc/delete_chart', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ chart_id:c.id, owner_token:ownerToken() }) });
+      if (!path) throw new Error('not owner');
+      await fetch(`${supaBase()}/storage/v1/object/songs/${path}`, { method:'DELETE', headers:supaHeaders() }).catch(() => {});
+      SHARE.mine.delete(c.id); store.set('rb-shared', [...SHARE.mine]);
+      loadShared();
+    } catch(err) { renderShared('公開をやめられませんでした。公開したときと同じブラウザで操作してください。'); }
+    return;
+  }
+  b.disabled = true; b.textContent = '曲を読み込み中…';
+  try {
+    initAudio();
+    const full = (await supa(`/rest/v1/charts?id=eq.${c.id}&select=*`))[0];
+    if (!full) throw new Error('gone');
+    const res = await fetch(`${supaBase()}/storage/v1/object/public/songs/${full.audio_path}`);
+    if (!res.ok) throw new Error('audio ' + res.status);
+    const buffer = await decode(await res.arrayBuffer());
+    const rec = { id:'s-' + full.id, title:full.title, bpm:full.bpm, phase:full.phase, diff:0.6, seed:full.seed, an:{ dur:full.duration }, notes:notesFromRows(full.notes) };
+    startGame(stageOf(rec, buffer));
+    supa('/rest/v1/rpc/count_play', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ chart_id:full.id }) }).catch(() => {});
+  } catch(err) { renderShared('この譜面を読み込めませんでした。削除されたか、通信に失敗した可能性があります。'); }
+  b.disabled = false; b.textContent = '遊ぶ';
+});
+// publishing from the editor
+function audioType(ab){
+  const u = new Uint8Array(ab, 0, Math.min(12, ab.byteLength)), s = String.fromCharCode(...u);
+  if (s.startsWith('ID3') || (u[0] === 0xff && (u[1] & 0xe0) === 0xe0)) return ['mp3', 'audio/mpeg'];
+  if (s.startsWith('RIFF') && s.slice(8, 12) === 'WAVE') return ['wav', 'audio/wav'];
+  if (s.startsWith('fLaC')) return ['flac', 'audio/flac'];
+  if (s.startsWith('OggS')) return ['ogg', 'audio/ogg'];
+  if (s.slice(4, 8) === 'ftyp') return ['m4a', 'audio/mp4'];
+  if (u[0] === 0x1a && u[1] === 0x45 && u[2] === 0xdf && u[3] === 0xa3) return ['webm', 'audio/webm'];
+  return null;
+}
+$('edPublish').addEventListener('click', () => {
+  if (!shareOn()) { edStatus('サーバーがまだつながっていないので公開できません（README の「みんなの譜面」を参照）。'); return; }
+  edStop();
+  $('pubTitle').value = ED.rec.title; $('pubAuthor').value = store.get('rb-author', '');
+  $('pubMsg').textContent = ED.errors.length ? `置けないノーツが ${ED.errors.length} 個あります。公開はできますが、遊ぶときは無視されます。` : '';
+  $('pubGo').disabled = false; $('pubDlg').hidden = false; $('pubAuthor').focus();
+});
+$('pubClose').addEventListener('click', () => { $('pubDlg').hidden = true; });
+$('pubGo').addEventListener('click', async () => {
+  const title = $('pubTitle').value.trim(), author = $('pubAuthor').value.trim(), msg = t => $('pubMsg').textContent = t;
+  if (!title || !author) return msg('曲名と作者名を入れてください。');
+  if (!buildChart(ED.notes, ED.rec.seed).notes.length) return msg('遊べるノーツが1つもありません。');
+  const audio = ED.rec.audio, kind = audioType(audio);
+  if (audio.byteLength > 15 * 1024 * 1024) return msg(`曲ファイルが ${(audio.byteLength / 1048576).toFixed(1)} MB あります。公開できるのは15MBまでです。mp3 などに変換して入れ直してください。`);
+  if (!kind) return msg('この曲ファイルの形式は公開できません（mp3 / m4a / wav / ogg / flac）。');
+  $('pubGo').disabled = true;
+  const path = `${crypto.randomUUID()}.${kind[0]}`;
+  try {
+    msg('曲をアップロード中…');
+    const up = await fetch(`${supaBase()}/storage/v1/object/songs/${path}`, { method:'POST', headers:supaHeaders({ 'Content-Type':kind[1], 'x-upsert':'false' }), body:new Blob([audio], { type:kind[1] }) });
+    if (!up.ok) throw new Error('upload ' + up.status + ' ' + (await up.text()).slice(0, 160));
+    msg('譜面を保存中…');
+    let row;
+    try {
+      row = (await supa('/rest/v1/charts', { method:'POST', headers:{ 'Content-Type':'application/json', Prefer:'return=representation' },
+        body: JSON.stringify({ title, author, bpm:ED.rec.bpm, phase:ED.rec.phase, duration:ED.rec.an.dur, seed:ED.rec.seed | 0, notes:notesToRows(ED.notes), audio_path:path, owner_hash:await sha256hex(ownerToken()) }) }))[0];
+    } catch(err) { fetch(`${supaBase()}/storage/v1/object/songs/${path}`, { method:'DELETE', headers:supaHeaders() }).catch(() => {}); throw err; }
+    SHARE.mine.add(row.id); store.set('rb-shared', [...SHARE.mine]); store.set('rb-author', author);
+    msg('公開しました。メニューの「みんなの譜面」に並んでいます。');
+    loadShared();
+  } catch(err) { msg('公開できませんでした：' + err.message); $('pubGo').disabled = false; }
 });
 
 /* ---------------- chart editor ---------------- */
@@ -1753,6 +1892,7 @@ function frame(now){
 toMenu();
 for (const s of Object.values(SONGS)) loadSong(s);
 dbAll().then(() => renderMine());
+loadShared();
 requestAnimationFrame(frame);
 })();
 </script>
