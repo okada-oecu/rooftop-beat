@@ -70,6 +70,13 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .set-checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px 16px;font-size:13px}
 .set-checks label{display:flex;gap:8px;align-items:center}
 .set-checks input{accent-color:var(--amber)}
+.set-row input[type=email],.set-row input[type=password]{width:100%;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:7px 9px;font:500 13px var(--body)}
+.tag{display:inline-block;margin-left:8px;padding:1px 7px;border-radius:3px;font:700 10px/1.6 var(--mono);letter-spacing:.08em;vertical-align:middle}
+.tag.hid{background:rgba(255,93,115,.18);color:#ffb3bf}
+.tag.adm{background:rgba(95,225,217,.18);color:var(--teal)}
+.mysong.is-hidden{opacity:.65;border-style:dashed}
+.mysong .edit{display:grid;gap:6px;min-width:0;flex:1}
+.mysong .edit input{background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.25);border-radius:4px;padding:6px 8px;font:500 13px var(--body);min-width:0}
 .keyb{font:700 12px var(--mono);color:var(--ink);overflow-wrap:anywhere}
 .mini.wait{background:var(--teal);color:#1a0f08;border-color:var(--teal)}
 @media (max-width:480px){ .set-row{grid-template-columns:1fr auto} .set-row > span:first-child{grid-column:1/-1} }
@@ -154,7 +161,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <div id="mineList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
     <section class="mine" id="shared">
-      <div class="mine-head"><h3>みんなの譜面</h3><div class="row" id="sharedTabs"><button class="mini tab" id="sortNew">新着</button><button class="mini tab" id="sortPop">人気</button><button class="mini" id="sharedReload">更新</button></div></div>
+      <div class="mine-head"><h3>みんなの譜面<span class="tag adm" id="adminBadge" hidden>管理者モード</span></h3><div class="row" id="sharedTabs"><button class="mini tab" id="sortNew">新着</button><button class="mini tab" id="sortPop">人気</button><button class="mini" id="sharedReload">更新</button></div></div>
       <p class="hint" id="sharedNote"></p>
       <div id="sharedList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
@@ -202,6 +209,20 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <label class="set-row" for="offset"><span>判定オフセット</span><input id="offset" type="range" min="-300" max="400" step="5" value="0"><output id="offsetOut">0 ms</output></label>
       <p class="hint">押すのが音より早めになりがちなら −、遅めなら ＋。ワイヤレスイヤホンは ＋ に大きくずれます。</p>
       <div class="row"><button class="mini" id="calBtn">音に合わせて自動調整</button></div>
+    </div>
+    <div class="set-group">
+      <h3>管理者</h3>
+      <div id="adminOut" style="display:grid;gap:8px">
+        <p class="hint">「みんなの譜面」を管理する人だけが使います。管理者のアカウントは Supabase で作ります（README 参照）。</p>
+        <label class="set-row" for="admEmail"><span>メール</span><input id="admEmail" type="email" autocomplete="username"><span></span></label>
+        <label class="set-row" for="admPass"><span>パスワード</span><input id="admPass" type="password" autocomplete="current-password"><span></span></label>
+        <div class="row"><button class="mini primary" id="admLogin">管理者としてログイン</button></div>
+      </div>
+      <div id="adminIn" hidden style="display:grid;gap:8px">
+        <p class="hint" id="admWho"></p>
+        <div class="row"><button class="mini" id="admLogout">ログアウト</button></div>
+      </div>
+      <p class="hint" id="admMsg"></p>
     </div>
     <div class="row" style="padding-top:6px"><button class="btn primary" id="setClose">閉じる</button><button class="btn" id="setReset">すべて初期設定に戻す</button></div>
   </div>
@@ -1384,6 +1405,17 @@ function renderSettings(){
 function openSettings(from){ setFrom = from; renderSettings(); $('setDlg').hidden = false; $('setClose').focus(); }
 function closeSettings(){ KEYCAP = null; $('setDlg').hidden = true; if (setFrom === 'pause') $('resume').focus(); }
 $('setOpen').addEventListener('click', () => openSettings('menu'));
+$('admLogin').addEventListener('click', async e => {
+  const email = $('admEmail').value.trim(), pass = $('admPass').value;
+  if (!shareOn()) return renderAdmin('サーバーがまだつながっていません。');
+  if (!email || !pass) return renderAdmin('メールとパスワードを入れてください。');
+  e.currentTarget.disabled = true; renderAdmin('確認中…');
+  try { await adminLogin(email, pass); $('admPass').value = ''; renderAdmin('ログインしました。'); loadShared(); }
+  catch(err) { renderAdmin(/Invalid login/i.test(err.message) ? 'メールかパスワードが違います。' : 'ログインできませんでした：' + err.message); }
+  e.currentTarget.disabled = false;
+});
+$('admPass').addEventListener('keydown', e => { if (e.key === 'Enter') $('admLogin').click(); });
+$('admLogout').addEventListener('click', () => adminLogout('ログアウトしました。'));
 $('pauseSet').addEventListener('click', () => openSettings('pause'));
 $('setClose').addEventListener('click', closeSettings);
 $('setReset').addEventListener('click', e => {
@@ -1599,10 +1631,50 @@ $('fileIn').addEventListener('change', async e => {
 const SUPABASE = { url: 'https://oucazrghojyboxmkbqiw.supabase.co', key: 'sb_publishable_-Uozk-t2665B2HOtqP0cIA_2ma9aEec' };
 const shareOn = () => !!(SUPABASE.url && SUPABASE.key);
 const supaBase = () => SUPABASE.url.replace(/\/+$/, '');
-function supaHeaders(extra){ const h = { apikey: SUPABASE.key, ...(extra || {}) }; if (SUPABASE.key.startsWith('eyJ')) h.Authorization = 'Bearer ' + SUPABASE.key; return h; }
+function supaHeaders(extra, token){
+  const h = { apikey: SUPABASE.key, ...(extra || {}) };
+  const bearer = token || (SUPABASE.key.startsWith('eyJ') ? SUPABASE.key : null);
+  if (bearer) h.Authorization = 'Bearer ' + bearer;
+  return h;
+}
+// admin mode: a Supabase Auth login. The server decides who is an admin (public.admins, supabase/admin.sql);
+// the page only shows the tools, so reading this code gives nobody extra rights.
+let ADMIN = store.get('rb-admin', null);   // { email, access_token, refresh_token, expires_at }
+async function authCall(grant, body){
+  const r = await fetch(`${supaBase()}/auth/v1/token?grant_type=${grant}`, { method:'POST', headers:{ apikey:SUPABASE.key, 'Content-Type':'application/json' }, body:JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error_description || d.msg || d.message || ('HTTP ' + r.status));
+  return { email:d.user && d.user.email, access_token:d.access_token, refresh_token:d.refresh_token, expires_at:Math.floor(Date.now() / 1000) + (d.expires_in || 3600) };
+}
+async function adminToken(){
+  if (!ADMIN) return null;
+  if (Date.now() / 1000 > ADMIN.expires_at - 60) {
+    try { ADMIN = { ...(await authCall('refresh_token', { refresh_token:ADMIN.refresh_token })), email:ADMIN.email }; store.set('rb-admin', ADMIN); }
+    catch(e) { adminLogout('ログインの期限が切れました。もう一度ログインしてください。'); return null; }
+  }
+  return ADMIN.access_token;
+}
+async function adminLogin(email, password){
+  ADMIN = await authCall('password', { email, password });
+  let ok = false;
+  try { ok = await supa('/rest/v1/rpc/is_admin', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:'{}' }); } catch(e) {}
+  if (ok !== true) { adminLogout(); throw new Error('このアカウントは管理者に登録されていません（README の「管理者モード」を参照）。'); }
+  store.set('rb-admin', ADMIN);
+}
+function adminLogout(msg){
+  if (ADMIN) fetch(`${supaBase()}/auth/v1/logout`, { method:'POST', headers:supaHeaders({}, ADMIN.access_token) }).catch(() => {});
+  ADMIN = null; store.set('rb-admin', null); SHARE.editing = null;
+  renderAdmin(msg); loadShared();
+}
+function renderAdmin(msg){
+  $('adminOut').hidden = !!ADMIN; $('adminIn').hidden = !ADMIN;
+  $('admWho').textContent = ADMIN ? `管理者としてログイン中：${ADMIN.email}。「みんなの譜面」で、非表示・名前の変更・削除ができます。` : '';
+  $('admMsg').textContent = msg || '';
+  $('adminBadge').hidden = !ADMIN;
+}
 async function supa(path, opts){
   opts = opts || {};
-  const r = await fetch(supaBase() + path, { ...opts, headers: supaHeaders(opts.headers) });
+  const r = await fetch(supaBase() + path, { ...opts, headers: supaHeaders(opts.headers, await adminToken()) });
   const t = await r.text();
   if (!r.ok) throw new Error(r.status + ' ' + t.slice(0, 200));
   return t ? JSON.parse(t) : null;
@@ -1618,7 +1690,7 @@ async function loadShared(){
   if (!shareOn()) { renderShared(); return; }
   SHARE.state = 'loading'; renderShared();
   try {
-    SHARE.list = await supa(`/rest/v1/charts?select=id,created_at,title,author,bpm,duration,note_count,plays,audio_path&order=${SHARE.sort === 'new' ? 'created_at' : 'plays'}.desc&limit=60`);
+    SHARE.list = await supa(`/rest/v1/charts?select=id,created_at,title,author,bpm,duration,note_count,plays,audio_path${ADMIN ? ',hidden' : ''}&order=${SHARE.sort === 'new' ? 'created_at' : 'plays'}.desc&limit=60`);
     SHARE.state = 'ready';
   } catch(e) { SHARE.state = 'error'; }
   renderShared();
@@ -1629,8 +1701,15 @@ function renderShared(msg){
   if (!shareOn()) { $('sharedNote').textContent = 'サーバーがまだつながっていません（README の「みんなの譜面」を参照）。'; box.innerHTML = ''; return; }
   $('sharedNote').textContent = msg || ({ loading:'読み込み中…', error:'一覧を読み込めませんでした。通信状況を確かめて「更新」を押してください。' }[SHARE.state]
     || (SHARE.list.length ? '' : 'まだ譜面がありません。マイ曲のエディタで「みんなに公開」を押すと、ここに並びます。'));
-  box.innerHTML = SHARE.state === 'ready' ? SHARE.list.map((c, i) => `<div class="mysong"><div class="meta"><b>${esc(c.title)}</b><span>by ${esc(c.author)} · ${Math.round(c.bpm)} BPM · ${fmtTime(c.duration)} · ノーツ ${c.note_count} · ${c.plays} 回プレイ · BEST ${store.get('rb-best-my-s-' + c.id, 0).toLocaleString()}</span></div>
-    <div class="row"><button class="mini primary" data-act="play" data-i="${i}">遊ぶ</button>${SHARE.mine.has(c.id) ? `<button class="mini danger" data-act="del" data-i="${i}">公開をやめる</button>` : ''}</div></div>`).join('') : '';
+  box.innerHTML = SHARE.state === 'ready' ? SHARE.list.map((c, i) => {
+    if (ADMIN && SHARE.editing === c.id) return `<div class="mysong"><div class="edit">
+      <input id="edT" maxlength="60" value="${esc(c.title)}" aria-label="曲名"><input id="edA" maxlength="24" value="${esc(c.author)}" aria-label="作者名"></div>
+      <div class="row"><button class="mini primary" data-act="save" data-i="${i}">保存</button><button class="mini" data-act="cancel" data-i="${i}">やめる</button></div></div>`;
+    const tools = ADMIN ? `<button class="mini" data-act="hide" data-i="${i}">${c.hidden ? '再表示' : '非表示'}</button><button class="mini" data-act="rename" data-i="${i}">名前を変える</button><button class="mini danger" data-act="adel" data-i="${i}">削除</button>`
+      : SHARE.mine.has(c.id) ? `<button class="mini danger" data-act="del" data-i="${i}">公開をやめる</button>` : '';
+    return `<div class="mysong${c.hidden ? ' is-hidden' : ''}"><div class="meta"><b>${esc(c.title)}${c.hidden ? '<span class="tag hid">非表示中</span>' : ''}</b><span>by ${esc(c.author)} · ${Math.round(c.bpm)} BPM · ${fmtTime(c.duration)} · ノーツ ${c.note_count} · ${c.plays} 回プレイ · BEST ${store.get('rb-best-my-s-' + c.id, 0).toLocaleString()}${ADMIN ? ' · ' + new Date(c.created_at).toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : ''}</span></div>
+    <div class="row"><button class="mini primary" data-act="play" data-i="${i}">遊ぶ</button>${tools}</div></div>`;
+  }).join('') : '';
   $('sortNew').classList.toggle('on', SHARE.sort === 'new'); $('sortPop').classList.toggle('on', SHARE.sort === 'pop');
 }
 const notesFromRows = rows => rows.map(a => ({ type:a[0], s:+a[1], t:+(a[2] != null ? a[2] : a[1]) })).filter(n => ['up','hold','down','right','left'].includes(n.type) && isFinite(n.s) && isFinite(n.t) && n.s >= 0);
@@ -1641,7 +1720,34 @@ $('sharedReload').addEventListener('click', loadShared);
 $('sharedList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   const c = SHARE.list[+b.dataset.i]; if (!c) return;
-  if (b.dataset.act === 'del') {
+  const act = b.dataset.act;
+  if (ADMIN && ['hide', 'rename', 'save', 'cancel', 'adel'].includes(act)) {
+    const one = `/rest/v1/charts?id=eq.${c.id}`, json = { 'Content-Type':'application/json', Prefer:'return=representation' };
+    try {
+      if (act === 'rename') { SHARE.editing = c.id; renderShared(); const t = $('edT'); t.focus(); t.select(); return; }
+      if (act === 'cancel') { SHARE.editing = null; renderShared(); return; }
+      if (act === 'adel' && !b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'もう一度押すと完全に削除'; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = '削除'; } }, 3000); return; }
+      b.disabled = true;
+      if (act === 'hide') {
+        const r = await supa(one, { method:'PATCH', headers:json, body:JSON.stringify({ hidden:!c.hidden }) });
+        if (!r || !r.length) throw new Error('権限がありません');
+      } else if (act === 'save') {
+        const title = $('edT').value.trim(), author = $('edA').value.trim();
+        if (!title || !author) { renderShared('曲名と作者名を入れてください。'); b.disabled = false; return; }
+        const r = await supa(one, { method:'PATCH', headers:json, body:JSON.stringify({ title, author }) });
+        if (!r || !r.length) throw new Error('権限がありません');
+        SHARE.editing = null;
+      } else if (act === 'adel') {
+        const r = await supa(one, { method:'DELETE', headers:json });
+        if (!r || !r.length) throw new Error('権限がありません');
+        await fetch(`${supaBase()}/storage/v1/object/songs/${r[0].audio_path}`, { method:'DELETE', headers:supaHeaders({}, await adminToken()) }).catch(() => {});
+        SHARE.mine.delete(c.id); store.set('rb-shared', [...SHARE.mine]);
+      }
+      loadShared();
+    } catch(err) { renderShared('管理操作に失敗しました：' + err.message); b.disabled = false; }
+    return;
+  }
+  if (act === 'del') {
     if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'もう一度押すと公開をやめる'; setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = '公開をやめる'; } }, 3000); return; }
     b.disabled = true;
     try {
@@ -2065,6 +2171,7 @@ function frame(now){
 toMenu();
 for (const s of Object.values(SONGS)) loadSong(s);
 dbAll().then(() => renderMine());
+renderAdmin();
 loadShared();
 requestAnimationFrame(frame);
 })();
