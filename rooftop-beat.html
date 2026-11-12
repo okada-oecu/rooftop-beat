@@ -129,14 +129,22 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .mini.tab.on{background:rgba(95,225,217,.18);border-color:var(--teal);color:var(--ink)}
 .mini[hidden]{display:none}
 #jsonText{width:100%;min-height:160px;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.2);border-radius:4px;padding:10px;font:12px/1.5 var(--mono)}
-#pad{position:fixed;right:16px;bottom:calc(var(--lane-space,76px) + env(safe-area-inset-bottom,0px));display:flex;gap:10px}
-#pad button{width:64px;height:64px;border-radius:50%;border:2px solid currentColor;background:rgba(18,11,32,.55);font:700 24px var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
+#pad{position:fixed;inset:0;pointer-events:none;z-index:3}
+#pad.editing{pointer-events:auto;z-index:9;background:rgba(10,6,18,.45)}
+#pad.editing button{outline:2px dashed rgba(255,244,230,.8);outline-offset:5px;cursor:grab}
+#padBar{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:10;display:flex;flex-direction:column;align-items:center;gap:10px;padding:14px 16px;border-radius:6px;background:#1a1030;border:1px solid rgba(255,244,230,.2);width:min(420px,calc(100vw - 32px));box-sizing:border-box;text-align:center}
+#padBar p{margin:0;font-size:13px;line-height:1.6}
+#pad button{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:auto;width:var(--pad-size,64px);height:var(--pad-size,64px);border-radius:50%;border:2px solid currentColor;background:rgba(18,11,32,.55);font:700 calc(var(--pad-size,64px) * .38) var(--mono);touch-action:none;user-select:none;-webkit-user-select:none}
 #pad [data-dir=up]{color:var(--amber)} #pad [data-dir=down]{color:var(--lilac)} #pad [data-dir=right]{color:var(--lime)} #pad [data-dir=left]{color:#ff8ad8}
 #pad button.on{background:currentColor}
 </style>
 
 <canvas id="c" aria-label="ゲーム画面" tabindex="-1"></canvas>
 <button id="pauseBtn" hidden aria-label="一時停止">II</button>
+<div id="padBar" hidden>
+  <p><b>ボタンをドラッグして好きな位置へ</b><br>指で押しやすい場所に置いたら「完了」</p>
+  <div class="row"><button class="btn primary" id="padDone">完了</button><button class="btn" id="padUndo">元の配置に戻す</button></div>
+</div>
 <div id="pad" hidden>
   <button data-dir="left" aria-label="壁ジャンプ（左）">←</button>
   <button data-dir="down" aria-label="スライディング">↓</button>
@@ -203,6 +211,14 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
         <label for="sWindows"><input type="checkbox" id="sWindows"> フロー中に窓が拍で光る</label>
         <label for="sShake"><input type="checkbox" id="sShake"> 画面の揺れ</label>
       </div>
+    </div>
+    <div class="set-group">
+      <h3>スマホのボタン</h3>
+      <label class="set-row" for="sPadShow"><span>表示</span><select id="sPadShow"><option value="auto">スマホ・タブレットで表示</option><option value="always">いつも表示</option><option value="never">表示しない</option></select><span></span></label>
+      <label class="set-row" for="sPadLayout"><span>配置</span><select id="sPadLayout"><option value="right">右にまとめる</option><option value="left">左にまとめる</option><option value="split">左右に分ける（← ↓ ｜ ↑ →）</option><option value="split2">左右に分ける（↑ ↓ ｜ ← →）</option><option value="custom">自分で配置</option></select><span></span></label>
+      <label class="set-row" for="sPadSize"><span>大きさ</span><select id="sPadSize"><option value="0.8">小さめ</option><option value="1">ふつう</option><option value="1.25">大きめ</option><option value="1.5">特大</option></select><span></span></label>
+      <div class="row"><button class="mini primary" id="padEdit">ボタンを動かす（ドラッグで配置）</button></div>
+      <p class="hint">画面のどこをタップしても ↑（ジャンプ）になります。ボタンは ↓ ← → を押すためのものです。</p>
     </div>
     <div class="set-group">
       <h3>キー</h3>
@@ -413,7 +429,7 @@ const store = {
 };
 let offsetMs = store.get('rb-offset', 0);
 // player settings (this browser only)
-const SET_DEF = { music:0.8, sfx:0.8, chartView:'lane', lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
+const SET_DEF = { padShow:'auto', padLayout:'right', padSize:1, padPos:null, music:0.8, sfx:0.8, chartView:'lane', lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
   ghosts:true, tricks:true, windows:true, shake:true,
   keys:{ up:['ArrowUp','KeyW','Space'], down:['ArrowDown','KeyS'], left:['ArrowLeft','KeyA'], right:['ArrowRight','KeyD'] } };
 let SET = (() => { const v = store.get('rb-settings', {}) || {}; return { ...SET_DEF, ...v, keys:{ ...SET_DEF.keys, ...(v.keys || {}) } }; })();
@@ -438,6 +454,28 @@ function initAudio(){
   const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
 }
 const latency = () => (actx ? (actx.outputLatency || actx.baseLatency || 0) : 0) + offsetMs / 1000;
+/* Phones only start sound from inside a tap, and on iPhone Web Audio is muted by the silent switch.
+   On every tap: resume the context, play one silent sample, and keep a silent <audio> element looping —
+   that moves the page into the "playback" audio session, which ignores the silent switch. */
+let silentEl = null;
+function silentWavUrl(){
+  const n = 800, b = new ArrayBuffer(44 + n * 2), v = new DataView(b), w = (o, t) => { for (let i = 0; i < t.length; i++) v.setUint8(o + i, t.charCodeAt(i)); };
+  w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, 8000, true); v.setUint32(28, 16000, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+  return URL.createObjectURL(new Blob([b], { type:'audio/wav' }));
+}
+function unlockAudio(){
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e) {}
+  initAudio();
+  if (actx.state !== 'running') actx.resume().catch(() => {});
+  try { const src = actx.createBufferSource(); src.buffer = actx.createBuffer(1, 1, actx.sampleRate); src.connect(actx.destination); src.start(0); } catch(e) {}
+  if (TOUCH) {
+    if (!silentEl) { silentEl = new Audio(silentWavUrl()); silentEl.loop = true; silentEl.setAttribute('playsinline', ''); silentEl.volume = 0.01; }
+    if (silentEl.paused) silentEl.play().catch(() => {});
+  }
+}
+for (const ev of ['pointerdown', 'touchend', 'click', 'keydown']) document.addEventListener(ev, unlockAudio, { capture:true, passive:true });
+document.addEventListener('visibilitychange', () => { if (document.hidden && silentEl) silentEl.pause(); });
 function env(g, t, a, peak, d){ g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(0.0001, t + a + d); }
 function tone(t, type, freq, dur, peak, dest){
   const o = actx.createOscillator(), g = actx.createGain();
@@ -1307,7 +1345,7 @@ function startGame(stage, opts){
   G.clock = () => (actx.currentTime - G.startAt - latency()) / G.spb;
   G.auto = !!opts.auto; G.from = opts.from;
   lastStage = stage; lastOpts = opts; paused = false;
-  $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = false; $('pad').hidden = !TOUCH;
+  $('menu').hidden = true; $('over').hidden = true; $('pause').hidden = true; $('pauseBtn').hidden = false; $('pad').hidden = !padVisible(); placePad();
   cv.focus();
 }
 function gameOver(g){
@@ -1368,7 +1406,7 @@ function setPause(on){
   if (!G || G.demo || !G.running) return;
   paused = on;
   if (on) actx.suspend(); else actx.resume();
-  $('pause').hidden = !on; $('pauseBtn').hidden = on; $('pad').hidden = on || !TOUCH;
+  $('pause').hidden = !on; $('pauseBtn').hidden = on; $('pad').hidden = on || !padVisible();
   if (on) $('resume').focus(); else cv.focus();
 }
 function renderStages(){
@@ -1447,6 +1485,7 @@ function renderSettings(){
   $('sMusic').value = Math.round(SET.music * 100); $('sMusicOut').textContent = pct(SET.music);
   $('sSfx').value = Math.round(SET.sfx * 100); $('sSfxOut').textContent = pct(SET.sfx);
   $('sView').value = SET.chartView;
+  $('sPadShow').value = SET.padShow; $('sPadLayout').value = SET.padLayout; $('sPadSize').value = String(SET.padSize);
   $('sLane').value = String(SET.lane); $('sSpeed').value = SET.laneSpeed; $('sSpeedOut').textContent = '×' + SET.laneSpeed;
   $('sHit').value = SET.hitFx;
   for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']]) $(id).checked = !!SET[k];
@@ -1480,6 +1519,9 @@ $('keyRows').addEventListener('click', e => { const b = e.target.closest('[data-
 $('sMusic').addEventListener('input', e => { SET.music = e.target.value / 100; $('sMusicOut').textContent = e.target.value + '%'; saveSettings(); });
 $('sSfx').addEventListener('input', e => { SET.sfx = e.target.value / 100; $('sSfxOut').textContent = e.target.value + '%'; saveSettings(); });
 $('sSfx').addEventListener('change', () => { initAudio(); actx.resume(); tone(actx.currentTime + 0.01, 'triangle', 880, 0.12, 0.2, sfxBus); });
+$('sPadShow').addEventListener('change', e => { SET.padShow = e.target.value; saveSettings(); });
+$('sPadLayout').addEventListener('change', e => { SET.padLayout = e.target.value; if (SET.padLayout === 'custom' && !SET.padPos) { openPadEdit(); return; } saveSettings(); placePad(); });
+$('sPadSize').addEventListener('change', e => { SET.padSize = +e.target.value; saveSettings(); placePad(); });
 $('sView').addEventListener('change', e => { SET.chartView = e.target.value; saveSettings(); });
 $('sLane').addEventListener('change', e => { SET.lane = +e.target.value; saveSettings(); });
 $('sSpeed').addEventListener('input', e => { SET.laneSpeed = +e.target.value; $('sSpeedOut').textContent = '×' + SET.laneSpeed; saveSettings(); });
@@ -1495,6 +1537,7 @@ $('cal').addEventListener('pointerdown', e => { if (CAL.on && !e.target.closest(
 
 window.addEventListener('keydown', e => {
   if (KEYCAP) { e.preventDefault(); captureKey(e.code); return; }
+  if (!$('padBar').hidden) { if (e.code === 'Escape' || e.code === 'Enter') closePadEdit(e.code === 'Enter'); return; }
   if (!$('cal').hidden) { if (CAL.on && (e.code === 'Space' || keyDir(e.code))) { e.preventDefault(); if (!e.repeat) calTap(); } return; }
   if (!$('setDlg').hidden) { if (e.code === 'Escape') closeSettings(); return; }
   if (ED.open) return;
@@ -1509,12 +1552,72 @@ window.addEventListener('keyup', e => { if (keyDir(e.code) === 'up') release(); 
 cv.addEventListener('pointerdown', e => { if (G && !G.demo) { e.preventDefault(); cv.setPointerCapture(e.pointerId); press('up'); } });
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
+// ---- on-screen buttons: presets or free placement (positions saved as fractions of the screen) ----
+const PAD_ORDER = { right:['left', 'down', 'up', 'right'], left:['left', 'down', 'up', 'right'], split:[['left', 'down'], ['up', 'right']], split2:[['up', 'down'], ['left', 'right']] };
+const padVisible = () => SET.padShow === 'always' || (SET.padShow === 'auto' && TOUCH);
+function padPreset(layout){
+  const vw = window.innerWidth, vh = window.innerHeight, sz = 64 * SET.padSize, gap = 12, edge = 16 + sz / 2;
+  const laneSpace = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lane-space')) || 76;
+  const y = vh - laneSpace - sz / 2 - 6, step = sz + gap, pos = {};
+  if (layout === 'left') PAD_ORDER.left.forEach((d, i) => pos[d] = { x:edge + i * step, y });
+  else if (layout === 'split' || layout === 'split2') {
+    const [l, r] = PAD_ORDER[layout];
+    l.forEach((d, i) => pos[d] = { x:edge + i * step, y });
+    r.forEach((d, i) => pos[d] = { x:vw - edge - (r.length - 1 - i) * step, y });
+  } else PAD_ORDER.right.forEach((d, i) => pos[d] = { x:vw - edge - (3 - i) * step, y });
+  return pos;
+}
+let padWork = null;   // positions (screen fractions) while the drag editor is open
+const toFrac = pos => { const vw = window.innerWidth, vh = window.innerHeight, f = {}; for (const d in pos) f[d] = { x:pos[d].x / vw, y:pos[d].y / vh }; return f; };
+function padPositions(){
+  if (padWork) { const vw = window.innerWidth, vh = window.innerHeight, pos = {}; for (const d in padWork) pos[d] = { x:padWork[d].x * vw, y:padWork[d].y * vh }; return pos; }
+  if (SET.padLayout === 'custom' && SET.padPos) {
+    const vw = window.innerWidth, vh = window.innerHeight, pos = {};
+    for (const d of ['left', 'down', 'up', 'right']) { const p = SET.padPos[d] || { x:0.5, y:0.8 }; pos[d] = { x:p.x * vw, y:p.y * vh }; }
+    return pos;
+  }
+  return padPreset(SET.padLayout === 'custom' ? 'right' : SET.padLayout);
+}
+function placePad(){
+  document.documentElement.style.setProperty('--pad-size', Math.round(64 * SET.padSize) + 'px');
+  const pos = padPositions();
+  for (const btn of document.querySelectorAll('#pad button')) { const p = pos[btn.dataset.dir]; btn.style.left = p.x + 'px'; btn.style.top = p.y + 'px'; }
+}
+window.addEventListener('resize', () => placePad());
+let padDrag = null, padBefore = null;
 for (const btn of document.querySelectorAll('#pad button')) {
   const dir = btn.dataset.dir;
-  btn.addEventListener('pointerdown', e => { e.preventDefault(); btn.setPointerCapture(e.pointerId); btn.classList.add('on'); press(dir); });
-  const up = () => { btn.classList.remove('on'); if (dir === 'up') release(); };
+  btn.addEventListener('pointerdown', e => {
+    e.preventDefault(); try { btn.setPointerCapture(e.pointerId); } catch(err) {}
+    if ($('pad').classList.contains('editing')) { padDrag = { btn, dx:e.clientX - parseFloat(btn.style.left), dy:e.clientY - parseFloat(btn.style.top) }; return; }
+    btn.classList.add('on'); press(dir);
+  });
+  btn.addEventListener('pointermove', e => {
+    if (!padDrag || padDrag.btn !== btn) return;
+    const r = 64 * SET.padSize / 2;
+    const x = clamp(e.clientX - padDrag.dx, r, window.innerWidth - r), y = clamp(e.clientY - padDrag.dy, r, window.innerHeight - r);
+    btn.style.left = x + 'px'; btn.style.top = y + 'px';
+    if (padWork) padWork[dir] = { x:x / window.innerWidth, y:y / window.innerHeight };
+  });
+  const up = () => { if (padDrag) { padDrag = null; return; } btn.classList.remove('on'); if (dir === 'up') release(); };
   btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
 }
+function openPadEdit(){
+  padBefore = { layout:SET.padLayout, pos:SET.padPos };
+  closeSettings(); $('setDlg').hidden = true;
+  padWork = toFrac(padPositions());
+  placePad(); $('pad').hidden = false; $('pad').classList.add('editing'); $('padBar').hidden = false;
+}
+function closePadEdit(save){
+  if (save) { SET.padLayout = 'custom'; SET.padPos = padWork; saveSettings(); }
+  padWork = null;
+  $('pad').classList.remove('editing'); $('padBar').hidden = true;
+  $('pad').hidden = !(G && !G.demo && G.running && !paused && padVisible());
+  placePad(); openSettings(setFrom);
+}
+$('padEdit').addEventListener('click', openPadEdit);
+$('padDone').addEventListener('click', () => closePadEdit(true));
+$('padUndo').addEventListener('click', () => { padWork = toFrac(padPreset(padBefore.layout === 'custom' ? 'right' : padBefore.layout)); placePad(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) setPause(true); });
 
 /* ---------------- charts from a note list ----------------
