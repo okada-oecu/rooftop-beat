@@ -92,6 +92,9 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 .mine{display:flex;flex-direction:column;gap:10px;border-top:1px solid rgba(255,244,230,.12);padding-top:16px}
 .mine-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .mine h3{margin:0;font:400 20px/1.2 var(--display)}
+#dopaBtn[aria-pressed=true]{background:linear-gradient(90deg,#ff5d73,#ffb547,#b6f06a,#5fe1d9,#c7a6ff,#ff8ad8);color:#1a0f08;border-color:transparent}
+.search{width:100%;box-sizing:border-box;background:#120a22;color:var(--ink);border:1px solid rgba(255,244,230,.22);border-radius:4px;padding:8px 10px;font:500 14px var(--body)}
+.search::placeholder{color:var(--muted)}
 .mysong{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;border:1px solid rgba(255,244,230,.14);border-radius:5px}
 .mysong .meta{min-width:0;display:flex;flex-direction:column;gap:4px}
 .mysong b{font-size:15px;overflow-wrap:anywhere}
@@ -169,15 +172,17 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       <div class="mine-head"><h3>マイ曲</h3><label class="mini primary" for="fileIn">＋ 曲を入れて譜面を作る</label></div>
       <input type="file" id="fileIn" accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac" hidden>
       <p class="hint">手持ちの音楽ファイルを選ぶと、BPMと拍の位置を自動で解析して譜面を作ります。エディタで1つずつ置き直したり、曲を流しながら矢印キーで打ち込んだりできます。</p>
+      <input class="search" id="mineSearch" type="search" placeholder="マイ曲を検索（曲名）" aria-label="マイ曲を検索">
       <p class="hint" id="mineNote"></p>
       <div id="mineList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
     <section class="mine" id="shared">
       <div class="mine-head"><h3>みんなの譜面<span class="tag adm" id="adminBadge" hidden>管理者モード</span></h3><div class="row" id="sharedTabs"><button class="mini tab" id="sortNew">新着</button><button class="mini tab" id="sortPop">人気</button><button class="mini" id="sharedReload">更新</button></div></div>
+      <input class="search" id="sharedSearch" type="search" placeholder="曲名・作者名で検索" aria-label="みんなの譜面を検索">
       <p class="hint" id="sharedNote"></p>
       <div id="sharedList" class="stats" style="grid-template-columns:1fr"></div>
     </section>
-    <div class="row"><button class="btn" id="setOpen">設定（音量・譜面・演出・キー・タイミング）</button></div>
+    <div class="row"><button class="btn" id="setOpen">設定（音量・譜面・演出・キー・タイミング）</button><button class="btn" id="dopaBtn" aria-pressed="false">ドパガキモード：OFF</button></div>
     <p class="hint" style="margin-top:-6px"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> や <kbd>Space</kbd>（＝↑）でも操作できます。キーは設定で入れ替えられます。スマホは画面右下のボタン。曲と譜面がズレて感じたら、設定の「音に合わせて自動調整」を（ワイヤレスイヤホンは特に遅れます）。<kbd>Esc</kbd> で一時停止。</p>
   </div>
 </div>
@@ -193,6 +198,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     </div>
     <div class="set-group">
       <h3>譜面（ノーツ）</h3>
+      <label class="set-row" for="sZoom"><span>画面の大きさ（キャラ・ビル）</span><select id="sZoom"><option value="0.9">小さめ（先まで見える）</option><option value="1">ふつう</option><option value="1.2">大きめ</option><option value="1.4">特大</option></select><span></span></label>
       <label class="set-row" for="sView"><span>表示する場所</span><select id="sView"><option value="lane">下のレーン</option><option value="world">ビルに沿わせる</option><option value="both">両方</option></select><span></span></label>
       <label class="set-row" for="sLane"><span>大きさ</span><select id="sLane"><option value="0.8">小さめ</option><option value="1">ふつう</option><option value="1.35">大きめ</option><option value="1.7">特大</option></select><span></span></label>
       <label class="set-row" for="sSpeed"><span>流れる速さ</span><input id="sSpeed" type="range" min="0.5" max="2.5" step="0.25"><output id="sSpeedOut"></output></label>
@@ -204,12 +210,19 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
       </div>
     </div>
     <div class="set-group">
+      <h3>キャラと背景</h3>
+      <label class="set-row" for="sSkin"><span>スキン</span><select id="sSkin"></select><span></span></label>
+      <label class="set-row" for="sTheme"><span>背景のステージ</span><select id="sTheme"></select><span></span></label>
+    </div>
+    <div class="set-group">
       <h3>演出</h3>
       <div class="set-checks">
         <label for="sGhosts"><input type="checkbox" id="sGhosts"> 残像（PERFECTを続けてフロー中）</label>
         <label for="sTricks"><input type="checkbox" id="sTricks"> フロー中の自動トリック</label>
         <label for="sWindows"><input type="checkbox" id="sWindows"> フロー中に窓が拍で光る</label>
         <label for="sShake"><input type="checkbox" id="sShake"> 画面の揺れ</label>
+        <label for="sSpeedFx"><input type="checkbox" id="sSpeedFx"> スピード線・手前を流れる柱</label>
+        <label for="sDopa"><input type="checkbox" id="sDopa"> ドパガキモード（刺激マシマシ）</label>
       </div>
     </div>
     <div class="set-group">
@@ -227,7 +240,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     </div>
     <div class="set-group">
       <h3>タイミング</h3>
-      <label class="set-row" for="offset"><span>判定オフセット</span><input id="offset" type="range" min="-300" max="400" step="5" value="0"><output id="offsetOut">0 ms</output></label>
+      <label class="set-row" for="offset"><span>判定オフセット</span><input id="offset" type="range" min="-600" max="600" step="5" value="0"><output id="offsetOut">0 ms</output></label>
       <p class="hint">押すのが音より早めになりがちなら −、遅めなら ＋。ワイヤレスイヤホンは ＋ に大きくずれます。</p>
       <div class="row"><button class="mini" id="calBtn">音に合わせて自動調整</button></div>
     </div>
@@ -275,6 +288,7 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
     <div class="stats" id="sGrades"></div>
     <div class="row">
       <button class="btn primary" id="retry">もう一度（Space）</button>
+      <button class="btn" id="retryHere" hidden>ミスした所から</button>
       <button class="btn" id="toMenu">ステージ選択</button>
     </div>
   </div>
@@ -357,18 +371,21 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 (() => {
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 let W, H, DPR, ZOOM, VW, VH;
+// world zoom: the screen fits about 760×620 world px, times the player's "見え方の大きさ" setting
+let VIEW_SCALE = (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}').view || 1.2; } catch(e) { return 1.2; } })();
 function resize(){
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
-  ZOOM = Math.max(0.5, Math.min(1.1, Math.min(W / 1000, H / 620)));
+  ZOOM = Math.max(0.45, Math.min(1.8, Math.min(W / 760, H / 620) * VIEW_SCALE));
   VW = W / ZOOM; VH = H / ZOOM;
 }
 window.addEventListener('resize', resize); resize();
 
 const C = { amber:'#ffb547', teal:'#5fe1d9', lilac:'#c7a6ff', lime:'#b6f06a', ink:'#fff4e6', muted:'#b6a5c8', danger:'#ff5d73', roof:'#120d1a', dark:'#1a0f08' };
 C.pink = '#ff8ad8';
-const NOTE_COLOR = { up:C.amber, hold:C.teal, down:C.lilac, right:C.lime, left:C.pink };
+const NOTE_COLOR = { up:C.amber, hold:C.teal, down:C.lilac, dhold:C.lilac, right:C.lime, left:C.pink };
+const isLong = n => n.type === 'hold' || n.type === 'dhold';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TOUCH = matchMedia('(pointer: coarse)').matches;
 const PPB = 180;                 // world px per beat; the runner always moves at one beat = PPB
@@ -380,7 +397,9 @@ const KICK = 1;                  // beats from the kick to landing on the roof
 // on the right wall press →, on the left wall press ←; each kick climbs SHAFT_RISE.
 const SHAFT_W = 150, SHAFT_FIRST = 40, SHAFT_RISE = 80, SHAFT_TOP = 70;
 function makeShaft(seg, times){
-  const xL = seg.T * PPB - seg.ox + 12, xR = xL + SHAFT_W;
+  const gaps = times.map((t, i) => t - (i ? times[i - 1] : seg.T)), minGap = Math.min(...gaps);
+  const width = clamp(70 + 110 * minGap, 90, 230);   // 0.25 beat → 98 px … 1 beat → 180 px … 1.5 → 230 px
+  const xL = seg.T * PPB - seg.ox + 12, xR = xL + width;
   // contacts alternate right wall, left wall…; the key is the side of the wall you are touching
   const kicks = times.map((t, i) => ({ t, wall: i % 2 ? 'L' : 'R', dir: i % 2 ? 'left' : 'right', x: i % 2 ? xL + 12 : xR - 12, y: seg.y - SHAFT_FIRST - SHAFT_RISE * i }));
   const last = kicks[kicks.length - 1], land = last.t + 1, landX = xR + 70;
@@ -418,6 +437,7 @@ const HINTS = {
   up:'白い輪にノーツが重なった瞬間に ↑',
   hold:'↑ を長押しで溜めて、帯の終わりで離す',
   down:'↓ でスライディング。配管の下をくぐる',
+  dhold:'↓ を押したままスライディング。長い配管の終わりで離す',
   right:'↑ で壁へ跳び、壁に着いた拍で → 壁キック',
   left:'壁ジャンプ：右の壁に着いたら →、左の壁に着いたら ←',
   shaft:'壁ジャンプ：右の壁に着いたら →、左の壁に着いたら ←',
@@ -429,7 +449,7 @@ const store = {
 };
 let offsetMs = store.get('rb-offset', 0);
 // player settings (this browser only)
-const SET_DEF = { padShow:'auto', padLayout:'right', padSize:1, padPos:null, music:0.8, sfx:0.8, chartView:'lane', lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
+const SET_DEF = { speed:true, dopa:false, skin:'default', theme:'auto', view:1.2, padShow:'auto', padLayout:'right', padSize:1, padPos:null, music:0.8, sfx:0.8, chartView:'lane', lane:1, laneSpeed:1, hitFx:'ring', laneText:true, fastSlow:true, near:true,
   ghosts:true, tricks:true, windows:true, shake:true,
   keys:{ up:['ArrowUp','KeyW','Space'], down:['ArrowDown','KeyS'], left:['ArrowLeft','KeyA'], right:['ArrowRight','KeyD'] } };
 let SET = (() => { const v = store.get('rb-settings', {}) || {}; return { ...SET_DEF, ...v, keys:{ ...SET_DEF.keys, ...(v.keys || {}) } }; })();
@@ -513,12 +533,15 @@ function pad(t0, t1, midi){
 function sfx(kind){
   if (!actx || !G || G.demo) return;
   const t = actx.currentTime;
-  if (kind === 'jump') noise(t, 0.12, 'bandpass', 2600, 0.12, sfxBus);
+  if (kind === 'jump') { noise(t, 0.16, 'bandpass', 1400, 0.24, sfxBus, 5200); const o = tone(t, 'square', 330, 0.09, 0.07, sfxBus); o.frequency.exponentialRampToValueAtTime(990, t + 0.08); }
+  if (kind === 'perfect') { tone(t, 'sine', 1760, 0.08, 0.13, sfxBus); tone(t + 0.01, 'sine', 2637, 0.06, 0.07, sfxBus); }
+  if (kind === 'great') tone(t, 'sine', 1318, 0.07, 0.09, sfxBus);
+  if (kind === 'combo') { [0, 4, 7, 12, 16, 19].forEach((iv, i) => tone(t + i * 0.045, 'square', mtof(76 + iv), 0.14, 0.08, sfxBus)); noise(t + 0.24, 0.35, 'highpass', 6000, 0.16, sfxBus); tone(t + 0.24, 'triangle', mtof(100), 0.4, 0.1, sfxBus); }
   if (kind === 'flow') { [0, 4, 7, 12].forEach((iv, i) => tone(t + i * 0.05, 'triangle', mtof(72 + iv), 0.18, 0.12, sfxBus)); }
   if (kind === 'big') { noise(t, 0.3, 'bandpass', 1400, 0.2, sfxBus); const o = tone(t, 'sine', 300, 0.25, 0.15, sfxBus); o.frequency.exponentialRampToValueAtTime(900, t + 0.25); }
   if (kind === 'slide') noise(t, 0.3, 'lowpass', 2400, 0.22, sfxBus, 300);
   if (kind === 'kick') { tone(t, 'square', 520, 0.06, 0.12, sfxBus); noise(t, 0.08, 'highpass', 3000, 0.18, sfxBus); }
-  if (kind === 'land') { const o = tone(t, 'sine', 120, 0.1, 0.25, sfxBus); o.frequency.exponentialRampToValueAtTime(60, t + 0.1); }
+  if (kind === 'land') { noise(t, 0.06, 'lowpass', 600, 0.25, sfxBus); const o = tone(t, 'sine', 130, 0.12, 0.32, sfxBus); o.frequency.exponentialRampToValueAtTime(60, t + 0.1); }
   if (kind === 'stumble') tone(t, 'square', 140, 0.08, 0.1, sfxBus);
   if (kind === 'crash') { noise(t, 0.25, 'lowpass', 900, 0.5, sfxBus); tone(t, 'sine', 70, 0.3, 0.4, sfxBus); }
   if (kind === 'fail') { const o = tone(t, 'sawtooth', 420, 0.7, 0.18, sfxBus); o.frequency.exponentialRampToValueAtTime(60, t + 0.7); }
@@ -543,6 +566,7 @@ function playCue(g, n, t){
   if (n.type === 'hold') { pad(t, tT, ch.root); pluck(tT, ch.root + 24, 1.1); }
   else if (n.type === 'up') pluck(tT, ch.root + 12 + ch.tri[n.seg % 3]);
   else if (n.type === 'down') { pluck(tT, ch.root, 1.2); noise(tT, 0.25, 'lowpass', 3000, 0.12, bus, 400); }
+  else if (n.type === 'dhold') { pluck(t, ch.root, 1.2); pad(t, tT, ch.root - 12); pluck(tT, ch.root + 12, 0.9); }
   else if (n.type === 'right') { pluck(tT, ch.root + 19, 1.1); pluck(tT, ch.root + 24, 0.8); }
   else if (n.type === 'left') { pluck(tT, ch.root + 16, 1.1); pluck(tT, ch.root + 28, 0.6); }
 }
@@ -567,12 +591,12 @@ function addNote(g, seg, n){
   g.typeCount[n.type] = (g.typeCount[n.type] || 0) + 1; n.nth = g.typeCount[n.type];
   g.notes.push(n);
   if (seg.shaft && (n.type === 'left' || n.type === 'right')) seg.shaft.kicks.find(k => k.t === n.t).note = n;
-  else if (n.type === 'down') seg.dn = n; else if (n.type === 'right') seg.kn = n; else seg.jn = n;
+  else if (n.type === 'down' || n.type === 'dhold') seg.dn = n; else if (n.type === 'right') seg.kn = n; else seg.jn = n;
 }
 function pushSeg(g, seg){
   g.segs.push(seg);
   if (seg.goal) { seg.jn = { type:'up', done:true }; return; }
-  if (seg.slide != null) addNote(g, seg, { type:'down', s:seg.slide, t:seg.slide });
+  if (seg.slide != null) addNote(g, seg, seg.slideTo != null ? { type:'dhold', s:seg.slide, t:seg.slideTo } : { type:'down', s:seg.slide, t:seg.slide });
   if (seg.kind === 'hold') addNote(g, seg, { type:'hold', s:seg.T - seg.h, t:seg.T });
   else addNote(g, seg, { type:'up', s:seg.T, t:seg.T });
   if (seg.kind === 'wall') addNote(g, seg, { type:'right', s:seg.T + seg.air, t:seg.T + seg.air });
@@ -592,7 +616,8 @@ function genSeg(g){
   else if (prev.shaft) y = prev.shaft.landY;
   else {
     let dy = prev.air <= 0.5 ? pick(r, [-30, 0, 30]) : prev.kind === 'hold' ? pick(r, [-110, -60, 0, 60]) : pick(r, [-70, -40, 0, 0, 40, 70]);
-    if (prev.y < -60 && prev.air > 0.5) dy = Math.abs(dy) + 40;   // drift back down after climbs so walls keep appearing
+    if (prev.y < -60 && prev.air > 0.5) dy = Math.min(Math.abs(dy), 40) + 15;   // drift back down after climbs, gently, so walls keep appearing
+    dy = Math.min(dy, 45 + 35 * prev.air);   // never drop much more than the jump is long
     y = clamp(prev.y + dy, -200, 170);
   }
   if (song && L >= song.endBeat - 6) {   // finish line: one long rooftop to run out the song on
@@ -630,13 +655,14 @@ function genSeg(g){
     air = d < 0.2 ? 1 : pick(r, d > 0.55 ? [0.5, 0.5, 1, 1, 1.5] : [0.5, 1, 1, 1, 1.5]);
     if (ground === 0.5 && air === 0.5 && d < 0.7) air = 1;
   }
-  let slide = null;
+  let slide = null, slideTo = null;
   if (!calm && n >= 3 && r() < 0.18 + 0.17 * d) {
     const off = pick(r, [0.5, 1]);
     slide = L + off;
-    ground = Math.max(ground, off + 1.5 + h);   // first action after the pipe is ≥ 1.5 beats later
+    if (d > 0.25 && r() < 0.35) slideTo = slide + pick(r, [1, 1.5, 2]);   // a long duct: hold ↓ through it
+    ground = Math.max(ground, off + (slideTo != null ? slideTo - slide : 0) + 1.5 + h);   // first action after the pipe is ≥ 1.5 beats later
   }
-  pushSeg(g, { L, T: L + ground, y, kind, h, air, idx: n, slide, face, faceX, ox });
+  pushSeg(g, { L, T: L + ground, y, kind, h, air, idx: n, slide, slideTo, face, faceX, ox });
 }
 function ensureChart(g, b){ if (g.stage.chart) return; while (g.segs[g.segs.length - 1].T < b + 40) genSeg(g); }
 
@@ -737,6 +763,10 @@ function judge(g, gr, weight){
   g.score += Math.round({ PERFECT:300, GREAT:200, GOOD:100 }[gr] * weight * (1 + Math.min(g.combo, 100) / 50));
   pop(g, gr, GRADE_COLOR[gr]);
   laneFx(g, gr, GRADE_COLOR[gr], LAST_SEC);
+  if (gr !== 'GOOD') sfx(gr === 'PERFECT' ? 'perfect' : 'great');
+  g.comboBump = 1;
+  if (COMBO_MARKS.includes(g.combo) || (g.combo > 500 && g.combo % 100 === 0)) comboMilestone(g);
+  if (SET.dopa) dopaHit(g, gr);
   // flow: 8 PERFECTs in a row fill the gauge; GREAT/GOOD keep it, any miss empties it
   if (gr === 'PERFECT' && !g.flowOn) {
     g.flow = Math.min(1, g.flow + FLOW_STEP);
@@ -744,6 +774,20 @@ function judge(g, gr, weight){
   }
 }
 const FLOW_STEP = 1 / 8;
+const COMBO_MARKS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500];
+const HYPE = ['神！', 'えぐい！', '天才！', '止まらん！', '最高！', 'ヤバい！', 'キマった！', '音ハメ！', 'うますぎ！', 'ゾーン！'];
+function dopaHit(g, gr){
+  const hue = (performance.now() / 4) % 360;
+  g.flash = Math.max(g.flash || 0, gr === 'PERFECT' ? 0.45 : 0.25); g.flashHue = hue;
+  g.shake = Math.max(g.shake, gr === 'PERFECT' ? 7 : 4);
+  for (let i = 0; i < 14; i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 600, vy:-150 - Math.random() * 420, life:0, max:.6 + Math.random() * .4, color:`hsl(${(hue + i * 26) % 360},95%,65%)`, size:3 + Math.random() * 4 });
+  if (gr === 'PERFECT' && (g.combo % 4 === 0 || Math.random() < 0.25)) g.hype = { text:HYPE[Math.floor(Math.random() * HYPE.length)], t:0, x:0.2 + Math.random() * 0.6, y:0.18 + Math.random() * 0.3, rot:(Math.random() - .5) * 0.5, hue };
+  if (actx && sfxBus) { const t = actx.currentTime; tone(t, 'square', 660 * Math.pow(2, Math.min(g.combo, 36) / 24), 0.08, 0.07, sfxBus); }
+}
+function comboMilestone(g){
+  g.comboPop = { n:g.combo, t:0 }; g.flash = Math.max(g.flash || 0, 0.55); sfx('combo');
+  for (let i = 0; i < 26; i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 520, vy:-120 - Math.random() * 380, life:0, max:.7 + Math.random() * .4, color:[C.amber, C.teal, C.pink, C.lime, C.ink][i % 5], size:3 + Math.random() * 3 });
+}
 function laneFx(g, label, color, sec){ (g.laneFx || (g.laneFx = [])).push({ label, color, sec, t:0 }); }
 function breakFlow(g){ if (g.demo) return; laneFx(g, 'MISS', C.danger, null); if (g.flowOn) pop(g, 'FLOW BREAK', C.muted); g.flow = 0; g.flowOn = false; }
 function stumble(g, label){ if (g.demo) return; g.combo = 0; g.counts.STUMBLE++; pop(g, label, C.danger); sfx('stumble'); breakFlow(g); }
@@ -754,7 +798,7 @@ function jump(g, seg){
   const nxt = g.segs[g.cur + 1];
   seg.jn.done = true; g.mode = 'air';
   if (seg.kind === 'wall') g.arc = { kind:'towall', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y + CONTACT, peak:30 };
-  else if (seg.shaft) { const k = seg.shaft.kicks[0]; g.ki = 0; g.arc = { kind:'toshaft', b0:seg.T, dur:k.t - seg.T, x0:seg.T * PPB - seg.ox, x1:k.x, y0:seg.y, y1:k.y, peak:34 }; }
+  else if (seg.shaft) { const k = seg.shaft.kicks[0]; g.ki = 0; g.arc = { kind:'toshaft', b0:seg.T, dur:k.t - seg.T, x0:seg.T * PPB - seg.ox, x1:k.x, y0:seg.y, y1:k.y, peak:34, eo:true }; }
   else g.arc = { kind:'jump', b0:seg.T, dur:seg.air, y0:seg.y, y1:nxt.y, peak:35 + 40 * seg.air, to:g.cur + 1, flip:seg.kind === 'hold' };
   if (g.flowOn && SET.tricks && g.arc.kind === 'jump' && !g.arc.flip && seg.air * g.spb >= 0.22) g.arc.trick = pick(Math.random, ['front', 'back', 'twist', 'front']);
   sfx(seg.kind === 'hold' ? 'big' : 'jump');
@@ -769,7 +813,7 @@ function wallKick(g){
 function shaftKick(g){
   const seg = g.segs[g.cur], ks = seg.shaft.kicks, k = ks[g.ki];
   g.kickQueued = false; g.mode = 'air';
-  if (g.ki < ks.length - 1) { const nk = ks[g.ki + 1]; g.arc = { kind:'shaftkick', b0:k.t, dur:nk.t - k.t, x0:k.x, x1:nk.x, y0:k.y, y1:nk.y, peak:46, kick:true }; g.ki++; }
+  if (g.ki < ks.length - 1) { const nk = ks[g.ki + 1]; g.arc = { kind:'shaftkick', b0:k.t, dur:nk.t - k.t, x0:k.x, x1:nk.x, y0:k.y, y1:nk.y, peak:46, kick:true, eo:true }; g.ki++; }
   else g.arc = { kind:'jump', b0:k.t, dur:seg.shaft.land - k.t, x0:k.x, x1:seg.shaft.landX, y0:k.y, y1:g.segs[g.cur + 1].y, peak:40, to:g.cur + 1, kick:true };
   sfx('kick'); dust(g, 9, NOTE_COLOR[k.dir], 150, k.wall === 'R' ? 1 : -1);
 }
@@ -783,20 +827,21 @@ function stopMusic(g){ if (!g.demo && bus) { bus.gain.cancelScheduledValues(actx
 function fall(g, label, cause){
   if (g.mode === 'fall' || g.mode === 'crash') return;
   if (g.mode === 'air' && g.arc) {
-    const a = g.arc, c = 2 * (Math.min(a.y0, a.y1) - a.peak) - (a.y0 + a.y1) / 2;
+    const a = g.arc, c = a.eo ? a.y1 : 2 * (Math.min(a.y0, a.y1) - a.peak) - (a.y0 + a.y1) / 2;
     g.vy = 2 * (a.y1 - c) / (a.dur * g.spb);
   } else g.vy = 0;
   g.vx = g.mode === 'wall' ? -60 : g.mode === 'cling' ? (g.segs[g.cur].shaft.kicks[g.ki].wall === 'R' ? -50 : 50)
     : g.mode === 'air' && g.arc && g.arc.x0 != null ? (g.arc.x1 - g.arc.x0) / (g.arc.dur * g.spb) : PPB / g.spb;
-  g.mode = 'fall'; g.fallT = 0; g.combo = 0; g.cause = cause || '谷へ落下'; breakFlow(g);
+  g.mode = 'fall'; g.fallT = 0; g.combo = 0; g.cause = cause || '谷へ落下'; g.failSeg = g.cur; breakFlow(g);
   if (label) pop(g, label, C.danger);
   sfx('fail'); stopMusic(g);
 }
 function crash(g){
-  g.mode = 'crash'; g.vx = -160; g.vy = -380; g.fallT = 0; g.crashY = g.segs[g.cur].y; g.combo = 0; g.cause = '配管に激突'; breakFlow(g);
+  g.mode = 'crash'; g.vx = -160; g.vy = -380; g.fallT = 0; g.crashY = g.segs[g.cur].y; g.combo = 0; g.cause = '配管に激突'; g.failSeg = g.cur; breakFlow(g);
   pop(g, 'CRASH', C.danger); g.shake = 10; sfx('crash'); stopMusic(g);
 }
-function bez(a, u){ const top = Math.min(a.y0, a.y1) - a.peak, c = 2 * top - (a.y0 + a.y1) / 2; return (1 - u) * (1 - u) * a.y0 + 2 * u * (1 - u) * c + u * u * a.y1; }
+// eo (ease-out): rise and arrive at y1 with zero vertical speed, so the wall is touched at the top of the arc, on the beat
+function bez(a, u){ if (a.eo) return a.y1 + (1 - u) * (1 - u) * (a.y0 - a.y1); const top = Math.min(a.y0, a.y1) - a.peak, c = 2 * top - (a.y0 + a.y1) / 2; return (1 - u) * (1 - u) * a.y0 + 2 * u * (1 - u) * c + u * u * a.y1; }
 
 function press(dir){
   const g = G; if (!g || g.demo || g.auto || !g.running || paused) return;
@@ -807,7 +852,7 @@ function pressAt(g, dir, b){
   // pressed in the air just before landing: if it is within the next roof's note window, keep it for the landing
   if ((dir === 'up' || dir === 'down') && g.mode === 'air' && g.arc.kind === 'jump') {
     const nx = g.segs[g.arc.to];
-    const tgt = dir === 'down' ? (nx.dn && !nx.dn.done ? nx.dn.t : null) : nx.goal ? null : nx.kind === 'hold' ? nx.T - nx.h : nx.T;
+    const tgt = dir === 'down' ? (nx.dn && !nx.dn.done ? nx.dn.s : null) : nx.goal ? null : nx.kind === 'hold' ? nx.T - nx.h : nx.T;
     if (tgt != null && Math.abs(b - tgt) * g.spb <= WIN.good) g.buffer = { dir, b };
     return;
   }
@@ -830,7 +875,12 @@ function pressAt(g, dir, b){
   } else if (dir === 'down') {
     if (g.mode !== 'ground') return;
     const dn = seg.dn;
-    if (dn && !dn.done) {
+    if (dn && !dn.done && dn.type === 'dhold' && !dn.started) {
+      const sec = (b - dn.s) * g.spb;
+      if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 0.5); dn.started = true; g.slideHold = dn; startSlide(g, b, Infinity); return; }
+      if (b < dn.s && b > dn.s - 1) { stumble(g, 'EARLY'); startSlide(g, b, b + 0.45); return; }
+    }
+    if (dn && !dn.done && dn.type === 'down') {
       const sec = (b - dn.t) * g.spb;
       if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
       if (b < dn.t && b > dn.t - 1) { stumble(g, 'EARLY'); startSlide(g, b, b + 0.45); return; }
@@ -852,6 +902,19 @@ function pressAt(g, dir, b){
     else if (sec < 0) fall(g, 'EARLY', '空中で壁キックが早すぎた');
   }
 }
+// letting go of ↓ during a long slide: on the duct's end beat it is judged, before that you stand up into it
+function releaseDown(){
+  const g = G; if (!g || g.demo || g.auto || paused) return;
+  if (g.buffer && g.buffer.dir === 'down') { g.buffer.rel = g.clock(); return; }
+  releaseDownAt(g, g.clock());
+}
+function releaseDownAt(g, b){
+  const dn = g.slideHold; if (!dn) return;
+  const sec = (b - dn.t) * g.spb;
+  g.slideHold = null;
+  if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); dn.done = true; g.slideEnd = b + 0.15; }
+  else if (sec < 0) g.mode = 'ground';   // stood up inside the duct; update() turns this into a crash
+}
 function release(){
   const g = G; if (!g || g.demo || g.auto || paused) return;
   if (g.buffer && g.buffer.dir === 'up') { g.buffer.rel = g.clock(); return; }
@@ -866,7 +929,8 @@ function releaseAt(g, b){
 function autoplay(g, b, seg){
   const dn = seg.dn, kn = seg.kn;
   if (g.mode === 'ground') {
-    if (dn && !dn.done && b >= dn.t) { dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
+    if (dn && !dn.done && dn.type === 'dhold' && !dn.started && b >= dn.s) { dn.started = true; g.slideHold = dn; startSlide(g, b, Infinity); return; }
+    if (dn && !dn.done && dn.type === 'down' && b >= dn.t) { dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
     if (seg.kind === 'hold') { if (b >= seg.T - seg.h) { g.mode = 'charge'; g.chargeAt = b; } }
     else if (b >= seg.T) jump(g, seg);
   } else if (g.mode === 'charge' && b >= seg.T) jump(g, seg);
@@ -886,11 +950,20 @@ function update(g, dt){
   ensureChart(g, b);
   const wB = wBeats(g);
   const seg = g.segs[g.cur];
-  if (g.demo || g.auto) autoplay(g, b, seg);
+  if (g.demo || g.auto) { autoplay(g, b, seg); if (g.slideHold && b >= g.slideHold.t) { g.slideHold.done = true; g.slideHold = null; g.slideEnd = b + 0.15; } }
   const alive = g.mode !== 'fall' && g.mode !== 'crash';
-  if (alive && seg.dn && !seg.dn.done && b > seg.dn.t + wB) crash(g);
+  const dn0 = seg.dn;
+  if (alive && dn0 && !dn0.done) {
+    if (dn0.type === 'down' && b > dn0.t + wB) crash(g);
+    else if (dn0.type === 'dhold') {
+      if (!dn0.started && b > dn0.s + wB) crash(g);
+      else if (dn0.started && g.mode !== 'slide' && b < dn0.t - wB) crash(g);
+      else if (dn0.started && g.slideHold === dn0 && b > dn0.t + wB) { dn0.done = true; g.slideHold = null; g.slideEnd = b; stumble(g, 'LATE'); }
+    }
+  }
   if (g.mode === 'ground' || g.mode === 'charge' || g.mode === 'slide') {
-    g.x = b * PPB - g.ox; g.y = seg.y;
+    g.x = (g.holdUntil != null ? Math.max(b, g.holdUntil) : b) * PPB - g.ox; g.y = seg.y;
+    if (g.holdUntil != null && b >= g.holdUntil) g.holdUntil = null;
     if (g.mode === 'slide') { if (b >= g.slideEnd) g.mode = 'ground'; else if (Math.random() < 0.5) dust(g, 1, C.muted, 80, -1); }
     if (b > seg.T + wB) fall(g, 'MISS', seg.kind === 'hold' ? '溜めジャンプを離せなかった' : 'ジャンプし損ねた');
   } else if (g.mode === 'air') {
@@ -901,7 +974,7 @@ function update(g, dt){
     else if (a.kind === 'jump') {
       g.cur = a.to; g.mode = 'ground'; g.y = a.y1; g.cleared++; g.ox = g.segs[g.cur].ox || 0;
       g.squash = a.flip || a.kick || a.trick ? 1 : 0.7;
-      if (g.buffer) { const bf = g.buffer; g.buffer = null; pressAt(g, bf.dir, bf.b); if (bf.rel != null && g.mode === 'charge') releaseAt(g, bf.rel); }
+      if (g.buffer) { const bf = g.buffer; g.buffer = null; pressAt(g, bf.dir, bf.b); if (bf.rel != null && g.mode === 'charge') releaseAt(g, bf.rel); if (bf.rel != null && bf.dir === 'down') releaseDownAt(g, bf.rel); }
       sfx('land'); dust(g, a.flip || a.kick ? 14 : 6, C.ink, a.flip ? 200 : 90);
       if (a.flip) g.shake = 6;
     } else if (a.kind === 'towall') {
@@ -945,6 +1018,17 @@ function update(g, dt){
   }
   g.shake = Math.max(0, g.shake - dt * 30);
   g.squash = Math.max(0, g.squash - dt * 6);
+  g.comboBump = Math.max(0, (g.comboBump || 0) - dt * 5);
+  g.flash = Math.max(0, (g.flash || 0) - dt * 2.5);
+  if (g.comboPop) { g.comboPop.t += dt; if (g.comboPop.t > 1.2) g.comboPop = null; }
+  // speed lines (screen space): density and alpha rise with tempo and flow
+  if (SET.speed && !REDUCED) {
+    const L = g.lines || (g.lines = []), v = PPB / g.spb * ZOOM * 2.4, run = g.mode !== 'fall' && g.mode !== 'crash';
+    const rate = run ? (g.flowOn ? 26 : 12) * (60 / g.spb / 120) : 0;
+    let k = rate * dt; while (k > 0) { if (Math.random() < k) L.push({ x:W + Math.random() * 60, y:Math.random() * H * 0.82, len:60 + Math.random() * 180, v:v * (0.8 + Math.random() * 0.6) }); k -= 1; }
+    for (const l of L) l.x -= l.v * dt;
+    g.lines = L.filter(l => l.x + l.len > 0);
+  }
   g.flowVis += ((g.flowOn ? 1 : 0) - g.flowVis) * Math.min(1, dt * 3);
   if (g.flowOn && g.mode === 'air' && Math.random() < 0.6) g.parts.push({ x:g.x - 6, y:g.y - 20 - Math.random() * 30, vx:-60 - Math.random() * 60, vy:-20, life:0, max:.4, color: Math.random() < 0.5 ? C.teal : C.amber, size:2 + Math.random() * 2 });
   for (const p of g.parts) { p.life += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
@@ -953,7 +1037,8 @@ function update(g, dt){
   g.pops = g.pops.filter(p => p.t < 0.7);
   if (g.laneFx) { for (const f of g.laneFx) f.t += dt; g.laneFx = g.laneFx.filter(f => f.t < 0.55); }
   // afterimages: remember recent poses while in flow
-  if (SET.ghosts && g.flowOn && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
+  if (g.hype) { g.hype.t += dt; if (g.hype.t > 0.9) g.hype = null; }
+  if (SET.ghosts && (g.flowOn || SET.dopa) && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
     (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur });
     if (g.trail.length > 12) g.trail.shift();
   } else if (g.trail && g.trail.length) g.trail.shift();
@@ -961,21 +1046,64 @@ function update(g, dt){
 }
 
 /* ---------------- drawing ---------------- */
+/* background stages: sky, sun/moon, skyline, rooftops, window light and weather */
+const THEMES = {
+  dusk:  { jp:'夕暮れ', sky:['#150b29', '#3d1b4d', '#b2464b', '#f08a46'], orb:'sun', orbCol:'#ffc77a', halo:'255,190,110', far:'#4a2150', mid:'#26133a', roof:'#120d1a', rim:'#2a2036', win:'255,181,71', stars:0.55 },
+  night: { jp:'ネオンの夜', sky:['#05040f', '#0c0b2a', '#1d1450', '#3a1d5c'], orb:'moon', orbCol:'#e8f0ff', halo:'150,170,255', far:'#141236', mid:'#0d0b22', roof:'#08070f', rim:'#1c1838', win:'95,225,217', win2:'255,138,216', winRate:0.24, stars:0.9 },
+  dawn:  { jp:'夜明け', sky:['#2b3a6b', '#6c7fb8', '#e8a7b5', '#ffd9b0'], orb:'sun', orbCol:'#fff3d6', halo:'255,230,200', far:'#7d7fa8', mid:'#4c4f7a', roof:'#262a45', rim:'#3c4166', win:'255,236,190', winRate:0.06, stars:0.15 },
+  rain:  { jp:'雨の街', sky:['#0f1418', '#1e2a33', '#33434d', '#4a5b63'], orb:'none', far:'#1f2a31', mid:'#141c22', roof:'#0b1014', rim:'#202c34', win:'180,220,255', winRate:0.18, stars:0, weather:'rain' },
+  snow:  { jp:'雪の夜', sky:['#0b1530', '#1b2c55', '#3c5486', '#7f95c0'], orb:'moon', orbCol:'#f4f8ff', halo:'200,220,255', far:'#2a3a63', mid:'#1a2546', roof:'#101833', rim:'#e8eef8', win:'255,214,150', winRate:0.15, stars:0.5, weather:'snow' },
+  sakura:{ jp:'桜', sky:['#2a1438', '#6b2f63', '#d46a8d', '#ffc1cf'], orb:'sun', orbCol:'#fff0f3', halo:'255,200,215', far:'#7a3a6c', mid:'#4a2047', roof:'#1d0f22', rim:'#ffb7c9', win:'255,200,220', winRate:0.12, stars:0.3, weather:'petals' },
+};
+const STAGE_THEME = { dusk:'dusk', neon:'night', sky:'dawn', pupa:'sakura', outside:'rain' };
+function pickTheme(stage){
+  const keys = Object.keys(THEMES);
+  if (SET.theme === 'random') return THEMES[keys[Math.floor(Math.random() * keys.length)]];
+  if (SET.theme !== 'auto' && THEMES[SET.theme]) return THEMES[SET.theme];
+  const id = stage && stage.id || 'dusk';
+  if (STAGE_THEME[id]) return THEMES[STAGE_THEME[id]];
+  let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) | 0;   // my songs / shared charts: a fixed theme per song
+  return THEMES[keys[Math.abs(h) % keys.length]];
+}
+function drawWeather(g, th){
+  if (!th.weather || REDUCED) return;
+  const t = performance.now() / 1000;
+  ctx.save();
+  if (th.weather === 'rain') {
+    ctx.strokeStyle = 'rgba(180,210,240,.35)'; ctx.lineWidth = 1.2; ctx.beginPath();
+    for (let i = 0; i < 90; i++) { const x = ((hash(i, 21, 1) * W * 1.4 - t * 260 - g.camX * ZOOM * 0.5) % (W * 1.2) + W * 1.2) % (W * 1.2) - W * 0.1, y = ((hash(i, 22, 1) * H + t * 900) % H); ctx.moveTo(x, y); ctx.lineTo(x - 6, y + 18); }
+    ctx.stroke();
+  } else {
+    const petals = th.weather === 'petals';
+    for (let i = 0; i < 60; i++) {
+      const sp = petals ? 70 : 45, x = ((hash(i, 31, 2) * W * 1.3 - t * (petals ? 90 : 25) - g.camX * ZOOM * 0.3 + Math.sin(t + i) * 20) % (W * 1.2) + W * 1.2) % (W * 1.2) - W * 0.1;
+      const y = ((hash(i, 32, 2) * H + t * sp * (0.6 + hash(i, 33, 2))) % H);
+      ctx.fillStyle = petals ? 'rgba(255,190,210,.8)' : 'rgba(255,255,255,.8)';
+      if (petals) { ctx.save(); ctx.translate(x, y); ctx.rotate(t * 2 + i); ctx.beginPath(); ctx.ellipse(0, 0, 3.5, 1.8, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+      else { ctx.beginPath(); ctx.arc(x, y, 1 + hash(i, 34, 2) * 1.6, 0, Math.PI * 2); ctx.fill(); }
+    }
+  }
+  ctx.restore();
+}
 function drawSky(g){
   const pulse = REDUCED ? 0 : Math.exp(-frac(g.beat) * 6);
+  const th = g.theme || (g.theme = pickTheme(g.stage));
   const gr = ctx.createLinearGradient(0, 0, 0, H);
-  gr.addColorStop(0, '#150b29'); gr.addColorStop(0.45, '#3d1b4d'); gr.addColorStop(0.72, '#b2464b'); gr.addColorStop(0.86, '#f08a46');
+  gr.addColorStop(0, th.sky[0]); gr.addColorStop(0.45, th.sky[1]); gr.addColorStop(0.72, th.sky[2]); gr.addColorStop(0.86, th.sky[3]);
   ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = 'rgba(255,244,230,.55)';
-  for (let i = 0; i < 60; i++) { const sx = ((hash(i, 1, 9) * W * 1.3 - g.camX * ZOOM * 0.02) % W + W) % W, sy = hash(i, 2, 9) * H * 0.4; ctx.fillRect(sx, sy, 1.4, 1.4); }
-  const sr = Math.min(W, H) * 0.2, sx = W * 0.68, sy = H * 0.7;
-  const sg = ctx.createRadialGradient(sx, sy, sr * 0.2, sx, sy, sr * (2.2 + pulse * 0.15));
-  sg.addColorStop(0, 'rgba(255,190,110,.55)'); sg.addColorStop(1, 'rgba(255,140,80,0)');
-  ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = '#ffc77a'; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(255,244,230,${th.stars})`;
+  for (let i = 0; i < (th.stars ? 60 : 0); i++) { const sx = ((hash(i, 1, 9) * W * 1.3 - g.camX * ZOOM * 0.02) % W + W) % W, sy = hash(i, 2, 9) * H * 0.4; ctx.fillRect(sx, sy, 1.4, 1.4); }
+  if (th.orb !== 'none') {
+    const moon = th.orb === 'moon', sr = Math.min(W, H) * (moon ? 0.08 : 0.2), sx = W * (moon ? 0.78 : 0.68), sy = H * (moon ? 0.18 : 0.7);
+    const sg = ctx.createRadialGradient(sx, sy, sr * 0.2, sx, sy, sr * (2.2 + pulse * 0.15));
+    sg.addColorStop(0, `rgba(${th.halo},.55)`); sg.addColorStop(1, `rgba(${th.halo},0)`);
+    ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = th.orbCol; ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    if (moon) { ctx.fillStyle = th.sky[0]; ctx.globalAlpha = 0.85; ctx.beginPath(); ctx.arc(sx + sr * 0.45, sy - sr * 0.2, sr * 0.9, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
+  }
   const layers = [
-    { par:0.12, w:64, min:70, max:230, col:'#4a2150', base:0.8, win:0 },
-    { par:0.35, w:104, min:120, max:360, col:'#26133a', base:0.86, win:0.12 },
+    { par:0.12, w:64, min:70, max:230, col:th.far, base:0.8, win:0 },
+    { par:0.35, w:104, min:120, max:360, col:th.mid, base:0.86, win:th.winRate || 0.12 },
   ];
   const fv = SET.windows ? g.flowVis || 0 : 0;
   for (const L of layers) {
@@ -986,13 +1114,14 @@ function drawSky(g){
       if (L.win) {
         for (let wy = baseY - h + 12; wy < H; wy += 16) for (let wx = x + 8; wx < x + bw - 8; wx += 14)
           { const hw = hash(k, wx | 0, wy | 0);
-            if (hw < L.win) { ctx.fillStyle = 'rgba(255,181,71,.35)'; ctx.fillRect(wx, wy, 5, 7); }
+            if (hw < L.win) { ctx.fillStyle = `rgba(${th.win2 && hw < L.win / 2 ? th.win2 : th.win},.35)`; ctx.fillRect(wx, wy, 5, 7); }
             if (fv > 0.02 && hw < L.win + 0.22 && ((Math.floor(g.beat) + (wy / 16 | 0) + k) & 1)) {   // flow: rows of windows flash in turn on the beat
               ctx.fillStyle = hw < (L.win + 0.11) ? C.teal : C.amber; ctx.globalAlpha = fv * (0.25 + 0.6 * pulse); ctx.fillRect(wx, wy, 5, 7); ctx.globalAlpha = 1;
             } }
       }
     }
   }
+  drawWeather(g, th);
 }
 
 function drawPipe(x1, x2, top, done){
@@ -1011,13 +1140,14 @@ function drawPlatforms(g){
     const x1 = s.faceX != null ? s.faceX - g.camX : (s.face != null ? s.face * PPB : s.L * PPB - 10) - o - g.camX, x2 = s.T * PPB + 10 - o - g.camX, top = s.y - g.camY;
     if (x1 > VW + 20) break;
     if (x2 < -20) continue;
-    ctx.fillStyle = C.roof; ctx.fillRect(x1, top, x2 - x1, VH - top + 40);
+    const th = g.theme || THEMES.dusk;
+    ctx.fillStyle = th.roof; ctx.fillRect(x1, top, x2 - x1, VH - top + 40);
     for (let wx = x1 + 14, c = 0; wx < x2 - 14; wx += 24, c++) for (let wy = top + 30, r = 0; wy < VH + 20; wy += 34, r++) {
       const h = hash(i, c, r);
-      if (h < 0.22) { ctx.fillStyle = h < 0.06 ? 'rgba(95,225,217,.28)' : 'rgba(255,181,71,.22)'; ctx.fillRect(wx, wy, 9, 14); }
+      if (h < 0.22) { ctx.fillStyle = h < 0.06 ? 'rgba(95,225,217,.28)' : `rgba(${th.win},.22)`; ctx.fillRect(wx, wy, 9, 14); }
       if (SET.windows && g.flowVis > 0.02 && h < 0.4 && ((Math.floor(g.beat) + r) & 1)) { ctx.fillStyle = h < 0.2 ? C.teal : C.amber; ctx.globalAlpha = g.flowVis * (0.15 + 0.45 * pulse); ctx.fillRect(wx, wy, 9, 14); ctx.globalAlpha = 1; }
     }
-    ctx.fillStyle = '#2a2036'; ctx.fillRect(x1, top, x2 - x1, 6);
+    ctx.fillStyle = th.rim; ctx.fillRect(x1, top, x2 - x1, 6);
     const edge = NOTE_COLOR[s.jn.type];
     ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * pulse; ctx.fillStyle = edge; ctx.shadowColor = edge; ctx.shadowBlur = 10 + 10 * pulse;
     ctx.fillRect(x1, top - 1, x2 - x1, 2); ctx.restore();
@@ -1034,7 +1164,7 @@ function drawPlatforms(g){
       if (hash(i, 9, 9) < 0.5) ctx.fillRect(px, top - 16, 26, 16);
       else { ctx.fillRect(px, top - 40, 3, 40); ctx.fillStyle = C.danger; ctx.globalAlpha = 0.5 + 0.5 * pulse; ctx.fillRect(px - 1, top - 44, 5, 4); ctx.globalAlpha = 1; }
     }
-    if (s.slide != null) drawPipe(s.slide * PPB - o - g.camX, (s.slide + 0.5) * PPB - o - g.camX, top, s.dn.done);
+    if (s.slide != null) drawPipe(s.slide * PPB - o - g.camX, (s.slideTo != null ? s.slideTo : s.slide + 0.5) * PPB - o - g.camX, top, s.dn.done);
     if (s.kind === 'hold') {
       const zs = (s.T - s.h) * PPB - o - g.camX, ze = s.T * PPB - o - g.camX;
       ctx.fillStyle = 'rgba(95,225,217,.16)'; ctx.fillRect(zs, top - 1, ze - zs, -10);
@@ -1124,15 +1254,43 @@ function drawRunner(g){
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
   const arm = (o, a, col) => { const e = seg2(o[0], o[1], a[0], 10); const h = seg2(e[0], e[1], a[0] + a[1], 10); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(h[0], h[1]); ctx.stroke(); };
+  const sk = skinNow(t);
+  if (sk.glow) { ctx.shadowColor = sk.glow; ctx.shadowBlur = 12; }
   ctx.lineWidth = 4.5;
-  limb(hip, legs[1], '#9d8bb3'); arm(sh, arms[1], '#9d8bb3');
-  ctx.strokeStyle = C.amber; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(sh[0], sh[1] - 2);
-  for (let i = 1; i <= 5; i++) ctx.lineTo(sh[0] - i * 7, sh[1] - 2 + i * 1.2 + Math.sin(t * 14 + i) * 2.5 * (g.mode === 'charge' ? 0.4 : 1));
+  limb(hip, legs[1], sk.far); arm(sh, arms[1], sk.far);
+  ctx.strokeStyle = sk.scarf; ctx.lineWidth = sk.scarfW || 3.5; ctx.beginPath(); ctx.moveTo(sh[0], sh[1] - 2);
+  for (let i = 1; i <= (sk.scarfLen || 5); i++) ctx.lineTo(sh[0] - i * 7, sh[1] - 2 + i * 1.2 + Math.sin(t * 14 + i) * 2.5 * (g.mode === 'charge' ? 0.4 : 1));
   ctx.stroke();
-  ctx.lineWidth = 5; ctx.strokeStyle = C.ink; ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(sh[0], sh[1]); ctx.stroke();
-  ctx.lineWidth = 4.5; limb(hip, legs[0], C.ink); arm(sh, arms[0], C.ink);
-  ctx.fillStyle = C.ink; ctx.beginPath(); ctx.arc(head[0], head[1], 6.5, 0, Math.PI * 2); ctx.fill();
+  ctx.lineWidth = 5; ctx.strokeStyle = sk.body; ctx.beginPath(); ctx.moveTo(hip[0], hip[1]); ctx.lineTo(sh[0], sh[1]); ctx.stroke();
+  ctx.lineWidth = 4.5; limb(hip, legs[0], sk.body); arm(sh, arms[0], sk.body);
+  ctx.fillStyle = sk.body;
+  if (sk.head === 'square') {   // robot: square head with a visor
+    ctx.fillRect(head[0] - 6.5, head[1] - 6.5, 13, 13); ctx.fillStyle = sk.accent; ctx.fillRect(head[0] - 1, head[1] - 2.5, 8, 3.5);
+  } else {
+    ctx.beginPath(); ctx.arc(head[0], head[1], 6.5, 0, Math.PI * 2); ctx.fill();
+    if (sk.head === 'cat') { ctx.beginPath(); ctx.moveTo(head[0] - 6, head[1] - 3); ctx.lineTo(head[0] - 4, head[1] - 12); ctx.lineTo(head[0] - 0.5, head[1] - 5); ctx.moveTo(head[0] + 1, head[1] - 5); ctx.lineTo(head[0] + 5, head[1] - 12); ctx.lineTo(head[0] + 6.5, head[1] - 2); ctx.fill(); }
+    if (sk.head === 'band') { ctx.fillStyle = sk.accent; ctx.fillRect(head[0] - 6.8, head[1] - 3, 13.6, 3); }
+    if (sk.head === 'cap') { ctx.fillStyle = sk.accent; ctx.beginPath(); ctx.arc(head[0], head[1] - 1, 7, Math.PI, 0); ctx.fill(); ctx.fillRect(head[0], head[1] - 2, 10, 2.5); }
+  }
   ctx.restore();
+}
+// character skins: colours and a head shape. "rainbow" cycles its hue.
+const SKINS = {
+  default:{ jp:'ランナー',   body:'#fff4e6', far:'#9d8bb3', scarf:'#ffb547', head:'circle' },
+  neon:   { jp:'ネオン',     body:'#5fe1d9', far:'#2c8f8a', scarf:'#ff8ad8', head:'circle', glow:'#5fe1d9' },
+  akane:  { jp:'アカネ',     body:'#ff7a7a', far:'#a6404f', scarf:'#fff4e6', head:'band', accent:'#1a0f08', scarfLen:7 },
+  robot:  { jp:'ロボ',       body:'#cfd6e4', far:'#7c8497', scarf:'#5fe1d9', head:'square', accent:'#5fe1d9' },
+  cat:    { jp:'ネコ',       body:'#ffd27a', far:'#b8893a', scarf:'#c7a6ff', head:'cat' },
+  street: { jp:'ストリート', body:'#b6f06a', far:'#5f8a2c', scarf:'#ffb547', head:'cap', accent:'#ff5d73' },
+  ghost:  { jp:'ゴースト',   body:'rgba(255,244,230,.6)', far:'rgba(199,166,255,.4)', scarf:'#b6f06a', head:'circle', glow:'#fff4e6' },
+  rainbow:{ jp:'レインボー', body:'#fff', far:'#999', scarf:'#fff', head:'circle', rainbow:true, scarfLen:8, scarfW:4.5 },
+};
+function skinNow(t){
+  const sk = SKINS[SET.skin] || SKINS.default;
+  if (!sk.rainbow && !SET.dopa) return sk;
+  const hue = (t * 120) % 360;   // ドパガキモード also turns every skin's scarf rainbow
+  return sk.rainbow ? { ...sk, body:`hsl(${hue},90%,72%)`, far:`hsl(${(hue + 40) % 360},60%,50%)`, scarf:`hsl(${(hue + 180) % 360},95%,65%)`, glow:`hsl(${hue},90%,60%)` }
+    : { ...sk, scarf:`hsl(${hue},95%,65%)`, scarfLen:8, glow:sk.glow || `hsl(${hue},90%,60%)` };
 }
 
 function drawGhosts(g){
@@ -1150,6 +1308,10 @@ function drawGhosts(g){
 function drawWorld(g){
   ctx.save();
   const sh = g.shake && SET.shake && !REDUCED ? (Math.random() - .5) * g.shake : 0;
+  if (SET.dopa && !g.demo && !REDUCED) {   // the whole world thumps on every beat
+    const bp = Math.exp(-frac(g.beat) * 7), z = 1 + 0.035 * bp;
+    ctx.translate(W / 2, H / 2); ctx.scale(z, z); ctx.translate(-W / 2, -H / 2);
+  }
   ctx.scale(ZOOM, ZOOM); ctx.translate(0, sh);
   if (g.mode === 'fall') { drawRunner(g); drawPlatforms(g); } else { drawPlatforms(g); if (!g.demo && SET.chartView !== 'lane') drawWorldNotes(g); drawGhosts(g); drawRunner(g); }
   for (const p of g.parts) { ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.color; ctx.fillRect(p.x - g.camX, p.y - g.camY, p.size, p.size); }
@@ -1168,6 +1330,21 @@ function arrow(x, y, dir, s, col){
   ctx.save(); ctx.translate(x, y); ctx.rotate({ up:-Math.PI / 2, down:Math.PI / 2, right:0, left:Math.PI }[dir]);
   ctx.strokeStyle = col; ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   ctx.beginPath(); ctx.moveTo(-s, 0); ctx.lineTo(s, 0); ctx.moveTo(s * 0.15, -s * 0.8); ctx.lineTo(s, 0); ctx.lineTo(s * 0.15, s * 0.8); ctx.stroke();
+  ctx.restore();
+}
+function drawSpeed(g){
+  if (!SET.speed || REDUCED || g.demo) return;
+  ctx.save();
+  ctx.strokeStyle = g.flowOn ? 'rgba(95,225,217,.28)' : 'rgba(255,244,230,.16)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); for (const l of g.lines || []) { ctx.moveTo(l.x, l.y); ctx.lineTo(l.x + l.len, l.y); } ctx.stroke();
+  // near foreground poles rushing past (parallax 1.7) sell the speed without covering the play area much
+  const par = 1.7, sp = 560, off = g.camX * ZOOM * par;
+  ctx.fillStyle = 'rgba(6,3,12,.78)';
+  for (let k = Math.floor(off / sp) - 1; k < (off + W) / sp + 1; k++) {
+    if (hash(k, 11, 3) < 0.45) continue;
+    const x = k * sp - off + hash(k, 12, 3) * 200, w = (8 + hash(k, 13, 3) * 10) * ZOOM, top = H * (0.5 + hash(k, 14, 3) * 0.2);
+    ctx.fillRect(x, top, w, H - top); ctx.fillRect(x - 18 * ZOOM, top, w + 36 * ZOOM, 5 * ZOOM);
+  }
   ctx.restore();
 }
 function drawHitFx(g, x, y, S, textY, noGrade){
@@ -1200,7 +1377,7 @@ function noteWorldPos(g, n){
   const s = g.segs[n.seg], o = s.ox || 0;
   if (s.shaft && (n.type === 'left' || n.type === 'right')) { const k = s.shaft.kicks.find(k => k.t === n.t); return { x:k.x + (k.wall === 'R' ? -16 : 16), y:k.y - 34 }; }
   if (n.type === 'right' && s.kind === 'wall') return { x:n.t * PPB - o - 18, y:g.segs[n.seg + 1].y + CONTACT - 34 };
-  if (n.type === 'down') return { x:n.t * PPB - o, y:s.y - 16 };
+  if (n.type === 'down' || n.type === 'dhold') return { x:n.t * PPB - o, y:s.y - 16 };
   return { x:n.t * PPB - o, y:s.y - 34 };
 }
 function drawWorldNotes(g){
@@ -1220,21 +1397,22 @@ function drawWorldNotes(g){
     const p = noteWorldPos(g, n), x = p.x - g.camX, y = p.y - g.camY, col = NOTE_COLOR[n.type];
     if (x < -80 || x > VW + 80) continue;
     let ringAt = n.t;
-    if (n.type === 'hold') {
-      const o = g.segs[n.seg].ox || 0, xs = n.s * PPB - o - g.camX;
-      const charging = n.seg === g.cur && g.mode === 'charge';
+    const ad = n.type === 'hold' ? 'up' : n.type === 'dhold' ? 'down' : n.type;
+    if (isLong(n)) {
+      const o = g.segs[n.seg].ox || 0, xs = n.s * PPB - o - g.camX, fill = n.type === 'hold' ? '95,225,217' : '199,166,255';
+      const charging = n.seg === g.cur && (g.mode === 'charge' || g.slideHold === n);
       if (!charging) ringAt = n.s;
       ctx.save(); ctx.globalAlpha = 0.85;
-      roundRect(xs - R, y - R, x - xs + 2 * R, 2 * R, R); ctx.fillStyle = 'rgba(95,225,217,.25)'; ctx.fill();
+      roundRect(xs - R, y - R, x - xs + 2 * R, 2 * R, R); ctx.fillStyle = `rgba(${fill},.25)`; ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke(); ctx.restore();
-      if (charging) { ctx.fillStyle = 'rgba(95,225,217,.45)'; const fx = Math.min(x, Math.max(xs, g.x - g.camX)); roundRect(xs - R, y - R, fx - xs + 2 * R, 2 * R, R); ctx.fill(); }
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, y, R * 0.7, 0, Math.PI * 2); ctx.fill(); arrow(xs, y, 'up', 4.5 * S, C.dark);
+      if (charging) { ctx.fillStyle = `rgba(${fill},.45)`; const fx = Math.min(x, Math.max(xs, g.x - g.camX)); roundRect(xs - R, y - R, fx - xs + 2 * R, 2 * R, R); ctx.fill(); }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, y, R * 0.7, 0, Math.PI * 2); ctx.fill(); arrow(xs, y, ad, 4.5 * S, C.dark);
       if (!charging) approach(xs, y, n.s, col);
     }
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, R, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = 'rgba(255,244,230,.7)'; ctx.lineWidth = 1.5; ctx.stroke();
-    arrow(x, y, n.type === 'hold' ? 'up' : n.type, 5.5 * S, C.dark);
-    if (n.type !== 'hold' || ringAt === n.t) approach(x, y, n.t, col);
+    arrow(x, y, ad, 5.5 * S, C.dark);
+    if (!isLong(n) || ringAt === n.t) approach(x, y, n.t, col);
   }
 }
 function drawLane(g){
@@ -1256,14 +1434,15 @@ function drawLane(g){
     const n = g.notes[i]; if (n.done) continue;
     const xe = jx + (n.t - b) * scale; if (jx + (n.s - b) * scale > W + 20) break;
     const col = NOTE_COLOR[n.type];
-    if (n.type === 'hold') {
+    if (isLong(n)) {
+      const ad = n.type === 'hold' ? 'up' : 'down';
       let xs = jx + (n.s - b) * scale;
-      if (n.seg === g.cur && g.mode === 'charge') xs = Math.max(xs, jx); else glow(xs, n.s);
-      roundRect(xs - R, cy - R, xe - xs + 2 * R, 2 * R, R); ctx.fillStyle = 'rgba(95,225,217,.28)'; ctx.fill();
+      if (n.seg === g.cur && (g.mode === 'charge' || g.slideHold === n)) xs = Math.max(xs, jx); else glow(xs, n.s);
+      roundRect(xs - R, cy - R, xe - xs + 2 * R, 2 * R, R); ctx.fillStyle = n.type === 'hold' ? 'rgba(95,225,217,.28)' : 'rgba(199,166,255,.28)'; ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xs, cy, R * 0.67, 0, Math.PI * 2); ctx.fill();
       ctx.beginPath(); ctx.arc(xe, cy, R, 0, Math.PI * 2); ctx.fill();
-      arrow(xs, cy, 'up', 4.5 * S, C.dark); arrow(xe, cy, 'up', 6 * S, C.dark);
+      arrow(xs, cy, ad, 4.5 * S, C.dark); arrow(xe, cy, ad, 6 * S, C.dark);
       glow(xe, n.t);
     } else {
       ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xe, cy, R, 0, Math.PI * 2); ctx.fill();
@@ -1279,6 +1458,25 @@ function drawLane(g){
 
 function drawHUD(g){
   if (g.demo) return;
+  if (SET.dopa && !REDUCED) {
+    const bp = Math.exp(-frac(g.beat) * 6), hue = (performance.now() / 6) % 360;
+    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `hsla(${hue},100%,55%,${0.08 + 0.16 * bp})`; ctx.fillRect(0, 0, W, H); ctx.restore();
+  }
+  if (g.flash > 0) { ctx.fillStyle = SET.dopa ? `hsla(${g.flashHue || 0},100%,70%,${0.3 * g.flash})` : `rgba(255,244,230,${0.28 * g.flash})`; ctx.fillRect(0, 0, W, H); }
+  if (g.hype) {
+    const k = g.hype.t / 0.9, sc = 1 + 0.8 * Math.pow(1 - Math.min(1, k * 4), 3);
+    ctx.save(); ctx.globalAlpha = 1 - k * k; ctx.translate(W * g.hype.x, H * g.hype.y); ctx.rotate(g.hype.rot); ctx.scale(sc, sc); ctx.textAlign = 'center';
+    ctx.font = `400 ${Math.round(Math.min(56, W * 0.11))}px "Dela Gothic One", sans-serif`;
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(10,6,18,.85)'; ctx.strokeText(g.hype.text, 0, 0);
+    ctx.fillStyle = `hsl(${g.hype.hue},95%,65%)`; ctx.fillText(g.hype.text, 0, 0); ctx.restore();
+  }
+  if (g.comboPop) {   // milestone: "50 COMBO!" bursts in the middle
+    const k = g.comboPop.t / 1.2, sc = 1 + 0.6 * Math.pow(1 - Math.min(1, k * 3), 3);
+    ctx.save(); ctx.globalAlpha = 1 - k * k; ctx.translate(W / 2, H * 0.32); ctx.scale(sc, sc); ctx.textAlign = 'center';
+    ctx.font = `400 ${Math.round(Math.min(64, W * 0.12))}px "Dela Gothic One", sans-serif`;
+    ctx.lineWidth = 6; ctx.strokeStyle = 'rgba(18,11,32,.8)'; ctx.strokeText(`${g.comboPop.n} COMBO!`, 0, 0);
+    ctx.fillStyle = C.amber; ctx.fillText(`${g.comboPop.n} COMBO!`, 0, 0); ctx.restore();
+  }
   const b = g.beat, top = 18;
   if (g.auto) { ctx.textAlign = 'right'; ctx.fillStyle = C.teal; ctx.font = '700 12px "JetBrains Mono", monospace'; ctx.fillText('AUTO PLAY', W - 68, 36); }
   ctx.textAlign = 'left'; ctx.fillStyle = C.muted; ctx.font = '700 11px "JetBrains Mono", monospace';
@@ -1305,8 +1503,10 @@ function drawHUD(g){
   }
   ctx.textAlign = 'center';
   if (g.combo >= 2) {
-    ctx.fillStyle = C.amber; ctx.font = '400 36px "Dela Gothic One", sans-serif';
-    ctx.fillText(g.combo, W / 2, top + 36); ctx.fillStyle = C.muted; ctx.font = '700 11px "JetBrains Mono", monospace'; ctx.fillText('COMBO', W / 2, top + 52);
+    const bump = 1 + 0.35 * (g.comboBump || 0) * (g.comboBump || 0);
+    ctx.save(); ctx.translate(W / 2, top + 24); ctx.scale(bump, bump);
+    ctx.fillStyle = SET.dopa ? `hsl(${(performance.now() / 5) % 360},95%,65%)` : g.combo >= 50 ? C.teal : C.amber; ctx.font = `400 ${SET.dopa ? 48 : 36}px "Dela Gothic One", sans-serif`;
+    ctx.fillText(g.combo, 0, 12); ctx.restore(); ctx.fillStyle = C.muted; ctx.font = '700 11px "JetBrains Mono", monospace'; ctx.fillText('COMBO', W / 2, top + 52);
   }
   const cd = b - (g.firstBeat - 4);   // 3-2-1-GO over the four beats before the first note
   if (cd >= 0 && cd < 4) {
@@ -1329,7 +1529,7 @@ const $ = id => document.getElementById(id);
 let paused = false, overAt = 0, lastStage = STAGES[0];
 const demoClock = g => { const t0 = performance.now() / 1000; return () => (performance.now() / 1000 - t0) / g.spb; };
 
-let lastOpts = {};
+let lastOpts = {}, lastFail = null;
 function startGame(stage, opts){
   opts = opts || {};
   initAudio(); actx.resume();
@@ -1337,10 +1537,21 @@ function startGame(stage, opts){
   bus = actx.createGain(); bus.gain.value = 0.7 * SET.music; bus.connect(comp);
   stopSong();
   G = makeGame(stage, false);
+  let b0 = null;   // retry from a rooftop part-way: game beat at audio start
+  if (opts.startSeg != null && stage.chart && stage.song) {
+    let j = clamp(opts.startSeg - 1, 0, G.segs.length - 1);
+    while (j > 0 && (G.segs[j].T - G.segs[j].L < 1 || G.segs[j].goal)) j--;   // a roof long enough to get going on
+    const sg = G.segs[j], sb = j === 0 ? Math.max(0, G.firstBeat - 4) : sg.L;
+    G.cur = j; G.ox = sg.ox || 0; G.y = sg.y; G.mode = 'ground'; G.camY = sg.y - VH * 0.58;
+    for (const n of G.notes) if (n.seg < j || n.s < sb - 1e-6) n.done = true;
+    G.holdUntil = sb; G.firstBeat = sb; G.retryFrom = sb;   // stand still through a 3-2-1 with the music, then run
+    b0 = sb - 4;
+  }
   if (stage.song) {
-    const t0 = actx.currentTime + 0.3;
-    songSrc = actx.createBufferSource(); songSrc.buffer = stage.song.buffer; songSrc.connect(bus); songSrc.start(t0);
-    G.startAt = t0 + stage.song.phaseLive;         // game beat 0 = the song's first beat
+    const t0 = actx.currentTime + 0.3, ph = stage.song.phaseLive, off = b0 == null ? 0 : ph + b0 * G.spb;
+    songSrc = actx.createBufferSource(); songSrc.buffer = stage.song.buffer; songSrc.connect(bus);
+    if (off >= 0) songSrc.start(t0, off); else songSrc.start(t0 - off, 0);
+    G.startAt = t0 - off + ph;         // game beat 0 = the song's first beat
   } else G.startAt = actx.currentTime + 0.25;
   G.clock = () => (actx.currentTime - G.startAt - latency()) / G.spb;
   G.auto = !!opts.auto; G.from = opts.from;
@@ -1350,7 +1561,7 @@ function startGame(stage, opts){
 }
 function gameOver(g){
   g.ended = true; g.running = false;
-  const key = 'rb-best-' + g.stage.id, prev = store.get(key, 0), isNew = !g.auto && g.score > prev;
+  const key = 'rb-best-' + g.stage.id, prev = store.get(key, 0), isNew = !g.auto && g.retryFrom == null && g.score > prev;
   if (isNew) store.set(key, g.score);
   $('overStage').textContent = `${g.stage.jp} · ${Math.round(g.stage.bpm)} BPM`;
   $('overTitle').textContent = g.clear ? '完走' : g.mode === 'crash' ? '激突' : '踏み外した';
@@ -1363,6 +1574,10 @@ function gameOver(g){
   $('sGrades').innerHTML = Object.entries(g.counts).map(([k, v]) => `<div class="stat"><b style="font-size:18px">${v}</b><span>${k}</span></div>`).join('');
   if (g.auto) $('overTitle').textContent = g.clear ? 'オートで完走' : 'オートでも失敗';
   $('toMenu').textContent = g.from === 'editor' ? 'エディタに戻る' : 'ステージ選択';
+  lastFail = g.failSeg != null ? g.failSeg : null;
+  const canHere = g.from === 'editor' && !g.clear && lastFail != null && !!g.stage.chart;
+  $('retryHere').hidden = !canHere;
+  if (canHere) { const sg = g.segs[Math.max(0, lastFail - 1)]; $('retryHere').textContent = `ミスした所から（${Math.floor(Math.max(0, sg.L) / 4) + 1}小節目あたり）`; }
   $('over').hidden = false; $('pauseBtn').hidden = true; $('pad').hidden = true; overAt = performance.now();
   $('retry').focus();
   renderStages();
@@ -1418,7 +1633,8 @@ function renderStages(){
   }).join('');
 }
 $('stages').addEventListener('click', e => { const b = e.target.closest('.stage'); if (b && !b.disabled) startGame(STAGES[+b.dataset.i]); });
-$('retry').addEventListener('click', () => startGame(lastStage, lastOpts));
+$('retry').addEventListener('click', () => startGame(lastStage, { ...lastOpts, startSeg:null }));
+$('retryHere').addEventListener('click', () => { if (lastFail != null) startGame(lastStage, { ...lastOpts, startSeg:lastFail }); });
 const leaveGame = () => lastOpts.from === 'editor' ? backToEditor() : toMenu();
 $('toMenu').addEventListener('click', leaveGame);
 $('resume').addEventListener('click', () => setPause(false));
@@ -1452,7 +1668,7 @@ function calFinish(){
   if (d.length < 8) { $('calMsg').textContent = `押せたのが ${d.length} 回だけだったので測れませんでした。もう一度「開始」を押してください。`; return; }
   const med = d[d.length >> 1], spread = (d[Math.floor(d.length * 0.75)] - d[Math.floor(d.length * 0.25)]) / 2;
   const auto = actx.outputLatency || actx.baseLatency || 0;
-  CAL.result = Math.round(clamp((med - auto) * 1000, -300, 400) / 5) * 5;
+  CAL.result = Math.round(clamp((med - auto) * 1000, -600, 600) / 5) * 5;
   $('calMsg').textContent = `クリック音から平均 ${Math.abs(Math.round(med * 1000))} ms ${med >= 0 ? '遅れて' : '早く'}押していました（ばらつき ±${Math.round(spread * 1000)} ms）。判定オフセットを ${CAL.result > 0 ? '+' : ''}${CAL.result} ms にすると合います。` + (spread > 0.05 ? ' ばらつきが大きいので、もう一度測るとより正確です。' : '');
   $('calApply').hidden = false; $('calApply').focus();
 }
@@ -1484,11 +1700,13 @@ function renderSettings(){
   const pct = v => Math.round(v * 100) + '%';
   $('sMusic').value = Math.round(SET.music * 100); $('sMusicOut').textContent = pct(SET.music);
   $('sSfx').value = Math.round(SET.sfx * 100); $('sSfxOut').textContent = pct(SET.sfx);
-  $('sView').value = SET.chartView;
+  $('sSkin').innerHTML = Object.entries(SKINS).map(([k, v]) => `<option value="${k}">${v.jp}</option>`).join(''); $('sSkin').value = SET.skin;
+  $('sTheme').innerHTML = '<option value="auto">ステージごとに変える</option><option value="random">毎回ランダム</option>' + Object.entries(THEMES).map(([k, v]) => `<option value="${k}">${v.jp}</option>`).join(''); $('sTheme').value = SET.theme;
+  $('sView').value = SET.chartView; $('sZoom').value = String(SET.view);
   $('sPadShow').value = SET.padShow; $('sPadLayout').value = SET.padLayout; $('sPadSize').value = String(SET.padSize);
   $('sLane').value = String(SET.lane); $('sSpeed').value = SET.laneSpeed; $('sSpeedOut').textContent = '×' + SET.laneSpeed;
   $('sHit').value = SET.hitFx;
-  for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']]) $(id).checked = !!SET[k];
+  for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake'], ['sSpeedFx','speed'], ['sDopa','dopa']]) $(id).checked = !!SET[k];
   off.value = offsetMs; showOff();
   renderKeys();
 }
@@ -1522,12 +1740,18 @@ $('sSfx').addEventListener('change', () => { initAudio(); actx.resume(); tone(ac
 $('sPadShow').addEventListener('change', e => { SET.padShow = e.target.value; saveSettings(); });
 $('sPadLayout').addEventListener('change', e => { SET.padLayout = e.target.value; if (SET.padLayout === 'custom' && !SET.padPos) { openPadEdit(); return; } saveSettings(); placePad(); });
 $('sPadSize').addEventListener('change', e => { SET.padSize = +e.target.value; saveSettings(); placePad(); });
+$('sSkin').addEventListener('change', e => { SET.skin = e.target.value; saveSettings(); });
+$('sTheme').addEventListener('change', e => { SET.theme = e.target.value; saveSettings(); if (G) G.theme = pickTheme(G.stage); });
+$('sZoom').addEventListener('change', e => { SET.view = +e.target.value; VIEW_SCALE = SET.view; saveSettings(); resize(); });
 $('sView').addEventListener('change', e => { SET.chartView = e.target.value; saveSettings(); });
 $('sLane').addEventListener('change', e => { SET.lane = +e.target.value; saveSettings(); });
 $('sSpeed').addEventListener('input', e => { SET.laneSpeed = +e.target.value; $('sSpeedOut').textContent = '×' + SET.laneSpeed; saveSettings(); });
 $('sHit').addEventListener('change', e => { SET.hitFx = e.target.value; saveSettings(); });
-for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake']])
-  $(id).addEventListener('change', e => { SET[k] = e.target.checked; saveSettings(); });
+for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake'], ['sSpeedFx','speed'], ['sDopa','dopa']])
+  $(id).addEventListener('change', e => { SET[k] = e.target.checked; saveSettings(); renderDopa(); });
+function renderDopa(){ $('dopaBtn').setAttribute('aria-pressed', String(!!SET.dopa)); $('dopaBtn').textContent = 'ドパガキモード：' + (SET.dopa ? 'ON' : 'OFF'); }
+$('dopaBtn').addEventListener('click', () => { SET.dopa = !SET.dopa; saveSettings(); renderDopa(); if (SET.dopa) { initAudio(); sfxBus && tone(actx.currentTime + 0.01, 'square', 880, 0.1, 0.12, sfxBus); tone(actx.currentTime + 0.08, 'square', 1320, 0.14, 0.12, sfxBus); } });
+renderDopa();
 function setLaneSpace(){ document.documentElement.style.setProperty('--lane-space', (SET.chartView === 'world' ? 30 : Math.round(46 * SET.lane + 30)) + 'px'); }
 setLaneSpace();
 $('calStart').addEventListener('click', calStart);
@@ -1542,13 +1766,13 @@ window.addEventListener('keydown', e => {
   if (!$('setDlg').hidden) { if (e.code === 'Escape') closeSettings(); return; }
   if (ED.open) return;
   if (e.code === 'Escape' || e.code === 'KeyP') { if (G && !G.demo && G.running) setPause(!paused); return; }
-  if (!$('over').hidden) { if (performance.now() - overAt > 600 && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); startGame(lastStage, lastOpts); } return; }
+  if (!$('over').hidden) { if (performance.now() - overAt > 600 && (e.code === 'Space' || e.code === 'Enter')) { e.preventDefault(); startGame(lastStage, { ...lastOpts, startSeg:null }); } return; }
   const dir = keyDir(e.code);
   if (!dir || !G || G.demo || paused) return;
   e.preventDefault();
   if (!e.repeat) press(dir);
 });
-window.addEventListener('keyup', e => { if (keyDir(e.code) === 'up') release(); });
+window.addEventListener('keyup', e => { const d = keyDir(e.code); if (d === 'up') release(); else if (d === 'down') releaseDown(); });
 cv.addEventListener('pointerdown', e => { if (G && !G.demo) { e.preventDefault(); cv.setPointerCapture(e.pointerId); press('up'); } });
 cv.addEventListener('pointerup', release);
 cv.addEventListener('pointercancel', release);
@@ -1599,7 +1823,7 @@ for (const btn of document.querySelectorAll('#pad button')) {
     btn.style.left = x + 'px'; btn.style.top = y + 'px';
     if (padWork) padWork[dir] = { x:x / window.innerWidth, y:y / window.innerHeight };
   });
-  const up = () => { if (padDrag) { padDrag = null; return; } btn.classList.remove('on'); if (dir === 'up') release(); };
+  const up = () => { if (padDrag) { padDrag = null; return; } btn.classList.remove('on'); if (dir === 'up') release(); else if (dir === 'down') releaseDown(); };
   btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up);
 }
 function openPadEdit(){
@@ -1628,7 +1852,8 @@ const floorQ = v => Math.floor(v * 4 + 1e-6) / 4;
 function stepY(r, y, prevKind, prevAir){
   if (prevKind === 'wall') return y - WALL_H;
   let dy = prevAir <= 0.5 ? pick(r, [-30, 0, 30]) : prevKind === 'hold' ? pick(r, [-110, -60, 0, 60]) : pick(r, [-70, -40, 0, 0, 40, 70]);
-  if (y < -60 && prevAir > 0.5) dy = Math.abs(dy) + 40;
+  if (y < -60 && prevAir > 0.5) dy = Math.min(Math.abs(dy), 40) + 15;
+  dy = Math.min(dy, 45 + 35 * prevAir);
   return clamp(y + dy, -400, 170);
 }
 function buildChart(input, seed){
@@ -1641,9 +1866,10 @@ function buildChart(input, seed){
   for (let i = 0; i < notes.length; i++) {
     if (used.has(i)) continue;
     const n = notes[i];
-    if (n.type === 'down') {
+    if (n.type === 'down' || n.type === 'dhold') {
       if (slide) { err(n, '1つの屋上に置ける↓は1つまで'); continue; }
-      if (n.t < L + 0.25 - 1e-6) { err(n, '着地から0.25拍以上あとに置く'); continue; }
+      if (n.s < L + 0.25 - 1e-6) { err(n, '着地から0.25拍以上あとに置く'); continue; }
+      if (n.type === 'dhold' && n.t - n.s < 0.5 - 1e-6) { err(n, '長スライドは0.5拍以上'); continue; }
       slide = n; continue;
     }
     if (n.type === 'right') { err(n, '→の0.25〜1.5拍前に↑（壁へのジャンプ）が必要'); continue; }
@@ -1676,10 +1902,10 @@ function buildChart(input, seed){
       air = kind === 'hold' ? clamp(floorQ(gap - 0.5), 1, 2.5) : gap >= 1 ? clamp(floorQ(gap - 0.5), 0.5, gap >= 3 ? 1.5 : 1) : Math.max(0.25, floorQ(gap - 0.25));
     }
     if (idx > 0) y = prevShaft ? prevShaft.landY : stepY(r, y, prevKind, prevAir);
-    const seg = { L, T, y, kind, h: kind === 'hold' ? n.t - n.s : 0, air, idx, slide: slide ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox };
+    const seg = { L, T, y, kind, h: kind === 'hold' ? n.t - n.s : 0, air, idx, slide: slide ? slide.s : null, slideTo: slide && slide.type === 'dhold' ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox };
     if (shaftTimes) makeShaft(seg, shaftTimes);
     g.segs.push(seg);
-    if (slide) addNote(g, seg, { type:'down', s:slide.t, t:slide.t });
+    if (slide) addNote(g, seg, { type:slide.type, s:slide.s, t:slide.t });
     addNote(g, seg, { type:n.type, s:n.s, t:n.t });
     if (kn) addNote(g, seg, { type:'right', s:kn.t, t:kn.t });
     if (seg.shaft) for (const k of seg.shaft.kicks) addNote(g, seg, { type:k.dir, s:k.t, t:k.t });
@@ -1689,9 +1915,9 @@ function buildChart(input, seed){
     prevShaft = seg.shaft || null;
   }
   if (idx > 0) y = prevShaft ? prevShaft.landY : stepY(r, y, prevKind, prevAir);
-  const goal = { L, T: L + 400, y, kind:'tap', h:0, air:1, idx, slide: slide ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox, goal:true, jn:{ type:'up', done:true } };
+  const goal = { L, T: L + 400, y, kind:'tap', h:0, air:1, idx, slide: slide ? slide.s : null, slideTo: slide && slide.type === 'dhold' ? slide.t : null, face, faceX: prevShaft ? prevShaft.xR : null, ox, goal:true, jn:{ type:'up', done:true } };
   g.segs.push(goal);
-  if (slide) addNote(g, goal, { type:'down', s:slide.t, t:slide.t });
+  if (slide) addNote(g, goal, { type:slide.type, s:slide.s, t:slide.t });
   return { segs:g.segs, notes:g.notes, errors };
 }
 
@@ -1738,9 +1964,11 @@ function autoNotes(rec, buffer){
 }
 const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 function renderMine(msg){
+  $('mineSearch').hidden = mine.length < 2;
   const box = $('mineList');
   $('mineNote').textContent = msg || (!dbOk ? 'このブラウザでは保存できないため、ページを閉じると曲と譜面は消えます。' : mine.length ? '曲と譜面はこのブラウザにだけ保存されます。' : '');
-  box.innerHTML = mine.map((m, i) => `<div class="mysong"><div class="meta"><b>${esc(m.title)}</b><span>${Math.round(m.bpm)} BPM · ${fmtTime(m.an.dur)} · ノーツ ${m.notes.length} · ${(DIFFS.find(d => d.v === m.diff) || DIFFS[1]).jp} · BEST ${store.get('rb-best-my-' + m.id, 0).toLocaleString()}</span></div>
+  const q = ($('mineSearch').value || '').trim().toLowerCase();
+  box.innerHTML = mine.map((m, i) => q && !m.title.toLowerCase().includes(q) ? '' : `<div class="mysong"><div class="meta"><b>${esc(m.title)}</b><span>${Math.round(m.bpm)} BPM · ${fmtTime(m.an.dur)} · ノーツ ${m.notes.length} · ${(DIFFS.find(d => d.v === m.diff) || DIFFS[1]).jp} · BEST ${store.get('rb-best-my-' + m.id, 0).toLocaleString()}</span></div>
     <div class="row"><button class="mini primary" data-act="play" data-i="${i}">遊ぶ</button><button class="mini" data-act="edit" data-i="${i}">譜面を編集</button><button class="mini danger" data-act="del" data-i="${i}">削除</button></div></div>`).join('');
 }
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
@@ -1846,17 +2074,23 @@ async function loadShared(){
   if (!shareOn()) { renderShared(); return; }
   SHARE.state = 'loading'; renderShared();
   try {
-    SHARE.list = await supa(`/rest/v1/charts?select=id,created_at,title,author,bpm,duration,note_count,plays,audio_path${ADMIN ? ',hidden' : ''}&order=${SHARE.sort === 'new' ? 'created_at' : 'plays'}.desc&limit=60`);
+    SHARE.list = await supa(`/rest/v1/charts?select=id,created_at,title,author,bpm,duration,note_count,plays,audio_path${ADMIN ? ',hidden' : ''}&order=${SHARE.sort === 'new' ? 'created_at' : 'plays'}.desc&limit=60${sharedQuery()}`);
     SHARE.state = 'ready';
   } catch(e) { SHARE.state = 'error'; }
   renderShared();
+}
+function sharedQuery(){
+  const q = ($('sharedSearch').value || '').replace(/[,()*%\\]/g, ' ').trim();   // characters that would break the filter syntax
+  if (!q) return '';
+  const pat = encodeURIComponent(`*${q}*`);
+  return `&or=(title.ilike.${pat},author.ilike.${pat})`;
 }
 function renderShared(msg){
   const box = $('sharedList');
   $('sharedTabs').hidden = !shareOn();
   if (!shareOn()) { $('sharedNote').textContent = 'サーバーがまだつながっていません（README の「みんなの譜面」を参照）。'; box.innerHTML = ''; return; }
   $('sharedNote').textContent = msg || ({ loading:'読み込み中…', error:'一覧を読み込めませんでした。通信状況を確かめて「更新」を押してください。' }[SHARE.state]
-    || (SHARE.list.length ? '' : 'まだ譜面がありません。マイ曲のエディタで「みんなに公開」を押すと、ここに並びます。'));
+    || (SHARE.list.length ? '' : $('sharedSearch').value.trim() ? '見つかりませんでした。別のことばで探してみてください。' : 'まだ譜面がありません。マイ曲のエディタで「みんなに公開」を押すと、ここに並びます。'));
   box.innerHTML = SHARE.state === 'ready' ? SHARE.list.map((c, i) => {
     if (ADMIN && SHARE.editing === c.id) return `<div class="mysong"><div class="edit">
       <input id="edT" maxlength="60" value="${esc(c.title)}" aria-label="曲名"><input id="edA" maxlength="24" value="${esc(c.author)}" aria-label="作者名"></div>
@@ -1868,11 +2102,14 @@ function renderShared(msg){
   }).join('') : '';
   $('sortNew').classList.toggle('on', SHARE.sort === 'new'); $('sortPop').classList.toggle('on', SHARE.sort === 'pop');
 }
-const notesFromRows = rows => rows.map(a => ({ type:a[0], s:+a[1], t:+(a[2] != null ? a[2] : a[1]) })).filter(n => ['up','hold','down','right','left'].includes(n.type) && isFinite(n.s) && isFinite(n.t) && n.s >= 0);
-const notesToRows = ns => ns.map(n => n.type === 'hold' ? [n.type, n.s, n.t] : [n.type, n.s]);
+const notesFromRows = rows => rows.map(a => ({ type:a[0], s:+a[1], t:+(a[2] != null ? a[2] : a[1]) })).filter(n => ['up','hold','down','dhold','right','left'].includes(n.type) && isFinite(n.s) && isFinite(n.t) && n.s >= 0);
+const notesToRows = ns => ns.map(n => isLong(n) ? [n.type, n.s, n.t] : [n.type, n.s]);
 $('sortNew').addEventListener('click', () => { SHARE.sort = 'new'; loadShared(); });
 $('sortPop').addEventListener('click', () => { SHARE.sort = 'pop'; loadShared(); });
 $('sharedReload').addEventListener('click', loadShared);
+let searchTimer = 0;
+$('sharedSearch').addEventListener('input', () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadShared, 350); });
+$('mineSearch').addEventListener('input', () => renderMine());
 $('sharedList').addEventListener('click', async e => {
   const b = e.target.closest('button'); if (!b) return;
   const c = SHARE.list[+b.dataset.i]; if (!c) return;
@@ -1974,7 +2211,7 @@ $('pubGo').addEventListener('click', async () => {
 });
 
 /* ---------------- chart editor ---------------- */
-const ROWS = [ { type:'up', label:'↑ ジャンプ' }, { type:'hold', label:'↑ 溜め' }, { type:'down', label:'↓ スライド' }, { type:'right', label:'→ 壁キック' }, { type:'left', label:'← 壁ジャンプ' } ];
+const ROWS = [ { type:'up', label:'↑ ジャンプ' }, { type:'hold', label:'↑ 溜め' }, { type:'down', label:'↓ スライド' }, { type:'dhold', label:'↓ 長スライド' }, { type:'right', label:'→ 壁キック' }, { type:'left', label:'← 壁ジャンプ' } ];
 const ED = { tool:'pen', sel:new Set(), box:null, moving:null, clip:store.get('rb-clip', null), snap:2, open:false, rec:null, buffer:null, notes:[], bad:new Map(), errors:[], bars:[], scroll:-2, ppb:64, cursor:0, playing:false, src:null, bus:null,
   t0:0, b0:0, hist:[], redo:[], drag:null, hover:null, upAt:null, schedBeat:0, schedNote:0, saveTimer:0, taps:[], W:0, H:0 };
 const ecv = $('edCanvas'), ectx = ecv.getContext('2d');
@@ -2066,8 +2303,8 @@ function edSchedule(){
     if (t > ahead) break;
     if (t >= actx.currentTime - 0.02) {
       if ($('edClick').checked && b % 1 === 0) tone(t, 'square', b % 4 === 0 ? 1600 : 1100, 0.03, 0.08, ED.bus);
-      for (const n of ED.notes) if (near(n.t, b) || (n.type === 'hold' && near(n.s, b))) {
-        const f = { up:880, hold:near(n.s, b) && !near(n.t, b) ? 520 : 1040, down:330, right:1320, left:1180 }[n.type];
+      for (const n of ED.notes) if (near(n.t, b) || (isLong(n) && near(n.s, b))) {
+        const f = { up:880, hold:near(n.s, b) && !near(n.t, b) ? 520 : 1040, down:330, dhold:near(n.s, b) && !near(n.t, b) ? 260 : 400, right:1320, left:1180 }[n.type];
         tone(t, 'triangle', f, 0.09, ED.bad.has(n) ? 0.05 : 0.16, ED.bus);
       }
     }
@@ -2121,11 +2358,11 @@ function edDraw(){
     if (n.t < b0 - 1 || n.s > b1 + 1) continue;
     const ri = ROWS.findIndex(r => r.type === n.type), y = rowTop + ri * rowH + rowH / 2, bad = ED.bad.has(n);
     const col = bad ? C.danger : NOTE_COLOR[n.type], rad = Math.min(12, rowH * 0.3);
-    if (n.type === 'hold') {
+    if (isLong(n)) {
       const xs = edX(n.s), xe2 = edX(n.t);
-      c.fillStyle = bad ? 'rgba(255,93,115,.3)' : 'rgba(95,225,217,.3)'; c.beginPath(); c.moveTo(xs, y - rad); c.lineTo(xe2, y - rad); c.arc(xe2, y, rad, -Math.PI / 2, Math.PI / 2); c.lineTo(xs, y + rad); c.arc(xs, y, rad, Math.PI / 2, -Math.PI / 2); c.fill();
+      c.fillStyle = bad ? 'rgba(255,93,115,.3)' : n.type === 'hold' ? 'rgba(95,225,217,.3)' : 'rgba(199,166,255,.3)'; c.beginPath(); c.moveTo(xs, y - rad); c.lineTo(xe2, y - rad); c.arc(xe2, y, rad, -Math.PI / 2, Math.PI / 2); c.lineTo(xs, y + rad); c.arc(xs, y, rad, Math.PI / 2, -Math.PI / 2); c.fill();
       c.fillStyle = col; c.beginPath(); c.arc(xs, y, rad * 0.7, 0, Math.PI * 2); c.fill(); c.beginPath(); c.arc(xe2, y, rad, 0, Math.PI * 2); c.fill();
-      edArrow(c, xe2, y, 'up', rad * 0.5);
+      edArrow(c, xe2, y, n.type === 'hold' ? 'up' : 'down', rad * 0.5);
     } else {
       const x = edX(n.s); c.fillStyle = col; c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
       edArrow(c, x, y, n.type, rad * 0.5);
@@ -2137,7 +2374,7 @@ function edDraw(){
     for (const n of ED.sel) {
       if (n.t < b0 - 1 || n.s > b1 + 1) continue;
       const ri = ROWS.findIndex(r => r.type === n.type), y = rowTop + ri * rowH + rowH / 2, rad = Math.min(12, rowH * 0.3) + 4;
-      if (n.type === 'hold') { const xs = edX(n.s), xe2 = edX(n.t); c.strokeRect(xs - rad, y - rad, xe2 - xs + 2 * rad, 2 * rad); }
+      if (isLong(n)) { const xs = edX(n.s), xe2 = edX(n.t); c.strokeRect(xs - rad, y - rad, xe2 - xs + 2 * rad, 2 * rad); }
       else { c.beginPath(); c.arc(edX(n.s), y, rad, 0, Math.PI * 2); c.stroke(); }
     }
     c.restore();
@@ -2165,7 +2402,7 @@ function edArrow(c, x, y, dir, s){
 }
 function edNoteAt(h){
   const type = ROWS[h.ri].type, tol = Math.max(0.12, 14 / ED.ppb);
-  return ED.notes.find(n => n.type === type && (type === 'hold' ? h.beat >= n.s - tol && h.beat <= n.t + tol : Math.abs(n.s - h.beat) <= tol));
+  return ED.notes.find(n => n.type === type && (type === 'hold' || type === 'dhold' ? h.beat >= n.s - tol && h.beat <= n.t + tol : Math.abs(n.s - h.beat) <= tol));
 }
 function edSelInfo(){
   const n = ED.sel.size, has = !!(ED.clip && ED.clip.notes.length);
@@ -2189,7 +2426,7 @@ function edPasteAt(base, label){
   if (!ED.clip || !ED.clip.notes.length) return edStatus('コピーしたノーツがありません。');
   base = Math.max(0, snapB(base));
   const added = ED.clip.notes.map(n => ({ type:n.type, s:base + n.s, t:base + n.t }));
-  edChange(() => { for (const n of added) clearAt(n.s, n.type === 'hold' ? n.t : null); ED.notes.push(...added); });
+  edChange(() => { for (const n of added) clearAt(n.s, isLong(n) ? n.t : null); ED.notes.push(...added); });
   ED.sel = new Set(added);
   ED.cursor = base + ED.clip.len;
   if (edX(ED.cursor) > ED.W - 40 || edX(base) < GUT) ED.scroll = base - 2;
@@ -2247,10 +2484,10 @@ ecv.addEventListener('pointerdown', e => {
   }
   if (h.out) return;
   const type = ROWS[h.ri].type;
-  if (type === 'hold') {
-    const hit = ED.notes.find(n => n.type === 'hold' && h.q >= n.s - 0.01 && h.q <= n.t + 0.01);
+  if (type === 'hold' || type === 'dhold') {
+    const hit = ED.notes.find(n => n.type === type && h.q >= n.s - 0.01 && h.q <= n.t + 0.01);
     if (hit) { edChange(() => { ED.notes = ED.notes.filter(n => n !== hit); }); return; }
-    ED.drag = { note:{ type:'hold', s:h.q, t:h.q + 1 } };
+    ED.drag = { note:{ type, s:h.q, t:h.q + 1 } };
   } else {
     const hit = ED.notes.find(n => n.type === type && near(n.s, h.q));
     edChange(() => { if (hit) ED.notes = ED.notes.filter(n => n !== hit); else addNote2(type, h.q, h.q); });
@@ -2272,7 +2509,7 @@ ecv.addEventListener('pointermove', e => {
 });
 const edUp = () => {
   if (ED.scrub) { ED.scrub = false; if (ED.resume) edPlay(); }
-  if (ED.drag) { const n = ED.drag.note; ED.drag = null; edChange(() => addNote2('hold', n.s, n.t)); }
+  if (ED.drag) { const n = ED.drag.note; ED.drag = null; edChange(() => addNote2(n.type, n.s, n.t)); }
   if (ED.box) {
     const bx = ED.box; ED.box = null;
     const lo = Math.min(bx.b0, bx.b1), hi = Math.max(bx.b0, bx.b1), r0 = Math.floor(Math.min(bx.r0, bx.r1)), r1 = Math.floor(Math.max(bx.r0, bx.r1));
@@ -2369,7 +2606,7 @@ function backToEditor(){
 // chart text export / import
 $('edJson').addEventListener('click', () => {
   const r = ED.rec;
-  $('jsonText').value = JSON.stringify({ format:'rooftop-beat-chart', version:2, title:r.title, bpm:r.bpm, firstBeatMs:Math.round(r.phase * 1000), notes:ED.notes.map(n => n.type === 'hold' ? [n.type, n.s, n.t] : [n.type, n.s]) });
+  $('jsonText').value = JSON.stringify({ format:'rooftop-beat-chart', version:2, title:r.title, bpm:r.bpm, firstBeatMs:Math.round(r.phase * 1000), notes:ED.notes.map(n => isLong(n) ? [n.type, n.s, n.t] : [n.type, n.s]) });
   $('jsonMsg').textContent = ''; $('jsonDlg').hidden = false; $('jsonText').focus(); $('jsonText').select();
 });
 $('jsonCopy').addEventListener('click', () => {
@@ -2410,16 +2647,20 @@ window.addEventListener('keydown', e => {
     e.preventDefault();
     const q = Math.max(0, snapB(edBeatNow()));
     if (e.code === 'ArrowUp') ED.upAt = edBeatNow();
-    else edChange(() => addNote2({ ArrowDown:'down', ArrowRight:'right', ArrowLeft:'left' }[e.code], q, q));
+    else if (e.code === 'ArrowDown') ED.downAt = edBeatNow();
+    else edChange(() => addNote2({ ArrowRight:'right', ArrowLeft:'left' }[e.code], q, q));
     return;
   }
   if (!ED.playing && (e.code === 'ArrowLeft' || e.code === 'ArrowRight')) { e.preventDefault(); ED.cursor = Math.max(0, ED.cursor + (e.code === 'ArrowLeft' ? -1 : 1)); if (edX(ED.cursor) > ED.W - 40 || edX(ED.cursor) < GUT + 20) ED.scroll = ED.cursor - 4; }
 });
 window.addEventListener('keyup', e => {
-  if (!ED.open || e.code !== 'ArrowUp' || ED.upAt == null) return;
-  const b0 = ED.upAt, b1 = edBeatNow(), q0 = Math.max(0, snapB(b0)); ED.upAt = null;
-  if (b1 - b0 >= 0.6) edChange(() => addNote2('hold', q0, Math.max(q0 + 0.5, snapB(b1))));
-  else edChange(() => addNote2('up', q0, q0));
+  if (!ED.open) return;
+  const key = e.code === 'ArrowUp' ? 'upAt' : e.code === 'ArrowDown' ? 'downAt' : null;
+  if (!key || ED[key] == null) return;
+  const b0 = ED[key], b1 = edBeatNow(), q0 = Math.max(0, snapB(b0)); ED[key] = null;
+  const [tap, long] = key === 'upAt' ? ['up', 'hold'] : ['down', 'dhold'];
+  if (b1 - b0 >= 0.6) edChange(() => addNote2(long, q0, Math.max(q0 + 0.5, snapB(b1))));
+  else edChange(() => addNote2(tap, q0, q0));
 });
 window.addEventListener('resize', () => { if (ED.open) edResize(); });
 function edFrame(){
@@ -2440,7 +2681,7 @@ function frame(now){
   if (G) {
     if (!paused) { update(G, dt); schedule(); }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    drawSky(G); drawWorld(G);
+    drawSky(G); drawWorld(G); drawSpeed(G);
     if (SET.chartView !== 'world' || G.demo) drawLane(G);
     else drawHitFx(G, (G.x - G.camX) * ZOOM, (G.y - G.camY - 30) * ZOOM, SET.lane, (G.y - G.camY - 95) * ZOOM, true);
     drawHUD(G);
