@@ -397,20 +397,22 @@ const KICK = 1;                  // beats from the kick to landing on the roof
 // on the right wall press →, on the left wall press ←; each kick climbs SHAFT_RISE.
 const SHAFT_W = 150, SHAFT_FIRST = 40, SHAFT_RISE = 80, SHAFT_TOP = 70;
 function makeShaft(seg, times){
-  // spacing follows each hop's beat gap: 0.25 beat → 98 px … 1 beat → 180 px … 1.5 → 230 px.
-  // The building (right wall) stays straight; each left-wall kick gets its own billboard panel set at the spacing
-  // its hops need, so when the rhythm changes mid-climb the walls step closer or further apart.
+  // Every hop's horizontal distance follows its own beat gap: 0.25 beat → 98 px … 1 beat → 180 px … 1.5 → 230 px.
+  // Walls are placed hop by hop: right wall, then left wall f(gap) to its left, then right wall f(gap) to its right…
+  // Left-wall contacts are billboard panels. The building's face is the right-most right wall; right contacts that
+  // sit further left are setbacks sticking out of the building at that height.
   const f = gap => clamp(70 + 110 * gap, 90, 230);
   const gaps = times.map((t, i) => t - (i ? times[i - 1] : seg.T));
-  const edge = seg.T * PPB - seg.ox + 12, xR = edge + f(gaps[0]);
+  const edge = seg.T * PPB - seg.ox + 12;
+  let wall = edge + f(gaps[0]);
   const kicks = times.map((t, i) => {
+    if (i) wall += (i % 2 ? -1 : 1) * f(gaps[i]);
     const y = seg.y - SHAFT_FIRST - SHAFT_RISE * i;
-    if (i % 2 === 0) return { t, wall:'R', dir:'right', x:xR - 12, y };
-    const w = f(Math.min(gaps[i], i + 1 < times.length ? gaps[i + 1] : 1));   // a panel serves the hop in and the hop out
-    return { t, wall:'L', dir:'left', x:xR - w + 12, y, panel:xR - w };
+    return i % 2 === 0 ? { t, wall:'R', dir:'right', x:wall - 12, y, panel:wall } : { t, wall:'L', dir:'left', x:wall + 12, y, panel:wall };
   });
+  const xR = Math.max(...kicks.filter(k => k.wall === 'R').map(k => k.panel));
+  const xL = Math.min(edge, ...kicks.filter(k => k.wall === 'L').map(k => k.panel));
   const last = kicks[kicks.length - 1], land = last.t + 1, landX = xR + 70;
-  const xL = Math.min(edge, ...kicks.filter(k => k.panel != null).map(k => k.panel));
   seg.shaft = { xL, xR, kicks, land, landY: last.y - SHAFT_TOP, landX, oxNext: land * PPB - landX };
   seg.air = land - seg.T;
 }
@@ -1211,6 +1213,15 @@ function drawShaft(g, s, pulse){
   if (sh.xL - g.camX > VW + 100 || xR < -100) return;
   const roof = s.y - g.camY;
   // left wall: one billboard panel per left-wall kick, each on a pole to the roof below
+  // right wall: where a right contact sits left of the building face, the building steps out at that height
+  const th = g.theme || THEMES.dusk;
+  for (const k of sh.kicks) {
+    if (k.wall !== 'R' || k.panel >= sh.xR - 0.5) continue;
+    const px = k.panel - g.camX, top = k.y - 75 - g.camY, bot = k.y + 45 - g.camY;
+    ctx.fillStyle = th.roof; ctx.fillRect(px, top, xR - px + 2, bot - top);
+    ctx.fillStyle = th.rim; ctx.fillRect(px, top, xR - px + 2, 4); ctx.fillRect(px, bot - 4, xR - px + 2, 4);
+    ctx.fillStyle = 'rgba(182,240,106,.5)'; ctx.fillRect(px, top, 2, bot - top);
+  }
   const panels = sh.kicks.filter(k => k.wall === 'L').map(k => ({ px:k.panel - g.camX, top:k.y - 75 - g.camY, bot:k.y + 45 - g.camY }));
   ctx.fillStyle = '#2a2036';
   for (const p of panels) ctx.fillRect(p.px - 44, p.bot, 4, Math.max(0, roof - p.bot));
@@ -1225,7 +1236,7 @@ function drawShaft(g, s, pulse){
   ctx.fillRect(tx - 1, roof - 14, 2, 14); ctx.restore();
   // a key mark at every contact: lime → on the building, pink ← on its panel
   for (const k of sh.kicks) {
-    const cx = k.wall === 'R' ? xR : k.panel - g.camX, cy = k.y - 30 - g.camY, col = NOTE_COLOR[k.dir], sgn = k.dir === 'right' ? 1 : -1;
+    const cx = k.panel - g.camX, cy = k.y - 30 - g.camY, col = NOTE_COLOR[k.dir], sgn = k.dir === 'right' ? 1 : -1;
     ctx.globalAlpha = k.note && k.note.done ? 0.25 : 0.55 + 0.45 * pulse; ctx.fillStyle = col;
     ctx.beginPath(); ctx.moveTo(cx, cy - 9); ctx.lineTo(cx + sgn * 10, cy); ctx.lineTo(cx, cy + 9); ctx.fill();
   }
