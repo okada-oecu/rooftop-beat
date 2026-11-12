@@ -829,17 +829,70 @@ function judge(g, gr, weight){
 const FLOW_STEP = 1 / 8;
 const COMBO_MARKS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500];
 const RAINBOW = Array.from({ length:12 }, (_, i) => `hsl(${i * 30},100%,55%)`);
-const HYPE = ['神！', 'えぐい！', '天才！', '止まらん！', '最高！', 'ヤバい！', 'キマった！', '音ハメ！', 'うますぎ！', 'ゾーン！'];
+const HYPE = ['神！', 'えぐい！', '天才！', '止まらん！', '最高！', 'ヤバい！', 'キマった！', '音ハメ！', 'うますぎ！', 'ゾーン！',
+  '気持ちいい！', '覚醒！', '無双！', '完璧！', 'ノってる！', 'バケモン！', '優勝！', '鳥肌！', '神業！', '爆速！',
+  '止まるな！', 'いけいけ！', 'ハマった！', 'それな！', 'エグすぎ！', '指が神！', 'リズム天才！', '音の申し子！', '覚醒中！', '最強！',
+  'キレッキレ！', 'ブチ上げ！', 'アガる！', 'まだまだ！', 'ぶっちぎり！', 'GOD!', 'INSANE!', 'SUGOI!', 'NICE!!', 'PERFECT!!'];
 function dopaHit(g, gr){
   const hue = (performance.now() / 4) % 360;
   g.flash = Math.max(g.flash || 0, gr === 'PERFECT' ? 0.45 : 0.25); g.flashHue = hue;
   g.shake = Math.max(g.shake, gr === 'PERFECT' ? 7 : 4);
   for (let i = 0; i < (LOWFX ? 4 : 8); i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 600, vy:-150 - Math.random() * 420, life:0, max:.6 + Math.random() * .4, color:RAINBOW[(i + (hue / 30 | 0)) % RAINBOW.length], size:3 + Math.random() * 4 });
-  if (gr === 'PERFECT' && (g.combo % 4 === 0 || Math.random() < 0.25)) g.hype = { text:HYPE[Math.floor(Math.random() * HYPE.length)], t:0, x:0.2 + Math.random() * 0.6, y:0.18 + Math.random() * 0.3, rot:(Math.random() - .5) * 0.5, hue };
+  const words = gr === 'PERFECT' ? 2 + (Math.random() < 0.25 ? 1 : 0) : gr === 'GREAT' ? 1 : Math.random() < 0.5 ? 1 : 0;   // ≈5x the old rate
+  for (let i = 0; i < words; i++) spawnHype(g, hue + i * 70);
   if (actx && sfxBus) { const t = actx.currentTime; tone(t, 'square', 660 * Math.pow(2, Math.min(g.combo, 36) / 24), 0.08, 0.07, sfxBus); }
+}
+// hype words live in five fixed spots in the sky band at the top of the screen: under the score/combo/hints,
+// above where the runner, roofs and notes are — so they never cover anything you need to read or hit.
+const HYPE_LIFE = 1.0, HYPE_MAX = 5;
+// kept out of the runner's column (≈28% from the left) — far left, and the right half where the sky is open
+const HYPE_SLOTS = [{ x:0.09, y:0.25 }, { x:0.56, y:0.15 }, { x:0.84, y:0.25 }, { x:0.66, y:0.8 }, { x:0.9, y:0.85 }];   // y is a fraction of the band
+function hypeBand(){ const top = Math.max(128, H * 0.13); return { top, h:Math.max(50, Math.min(H * 0.34, H * 0.62 - 120) - top) }; }
+function spawnHype(g, hue){
+  const list = g.hypes || (g.hypes = []);
+  const used = new Set(list.map(h => h.slot));
+  let free = HYPE_SLOTS.map((_, i) => i).filter(i => !used.has(i));
+  if (!free.length) { const old = list.shift(); free = [old.slot]; }   // full: the oldest word makes room
+  const slot = free[Math.floor(Math.random() * free.length)];
+  list.push({ text:HYPE[Math.floor(Math.random() * HYPE.length)], t:0, slot, rot:(Math.random() - .5) * 0.35, hue:hue % 360, seed:Math.random() * 10 });
+  if (list.length > HYPE_MAX) list.shift();
+}
+function drawHypes(g){
+  if (!g.hypes || !g.hypes.length) return;
+  const band = hypeBand(), fs = Math.round(Math.min(44, W * 0.075, band.h * 0.55)), now = performance.now() / 1000;
+  const rx = (g.x - g.camX) * ZOOM, ryTop = (g.y - g.camY - 80) * ZOOM, ryBot = (g.y - g.camY + 10) * ZOOM;
+  ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `400 ${fs}px "Dela Gothic One", sans-serif`;
+  for (const h of g.hypes) {
+    const k = h.t / HYPE_LIFE, sl = HYPE_SLOTS[h.slot];
+    const pop = h.t < 0.18 ? 1.35 - 0.35 * (h.t / 0.18) + Math.sin(h.t / 0.18 * Math.PI) * 0.25 : 1;   // bounce in
+    const shake = h.t < 0.25 && !REDUCED ? (Math.random() - .5) * 6 * (1 - h.t / 0.25) : 0;
+    const w = ctx.measureText(h.text).width, hue = (h.hue + now * 240) % 360;
+    const x = clamp(W * sl.x, w / 2 + 14, W - w / 2 - 14) + shake, y = band.top + band.h * sl.y - 16 * k;   // stays on screen, drifts up a little
+    // if the runner jumps up into a word, that word steps out of the way (nearly transparent) until it leaves
+    const over = Math.abs(x - rx) < w / 2 + 40 * ZOOM && y + fs * 0.6 > ryTop && y - fs * 0.6 < ryBot;
+    ctx.save(); ctx.globalAlpha = (k > 0.7 ? (1 - k) / 0.3 : 1) * (over ? 0.15 : 1);
+    ctx.translate(x, y); ctx.rotate(h.rot + (REDUCED ? 0 : Math.sin(now * 14 + h.seed) * 0.05)); ctx.scale(pop, pop);
+    // soft coloured glow (wide translucent stroke, no blur filter), dark outline, then a rainbow gradient fill
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = `hsla(${hue},100%,60%,.35)`; ctx.lineWidth = 16; ctx.strokeText(h.text, 0, 0);
+    ctx.strokeStyle = 'rgba(8,4,16,.9)'; ctx.lineWidth = 7; ctx.strokeText(h.text, 0, 0);
+    const gr = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
+    gr.addColorStop(0, `hsl(${hue},100%,62%)`); gr.addColorStop(0.5, `hsl(${(hue + 60) % 360},100%,70%)`); gr.addColorStop(1, `hsl(${(hue + 120) % 360},100%,62%)`);
+    ctx.fillStyle = gr; ctx.fillText(h.text, 0, 0);
+    // twinkling sparkles at the corners
+    if (!REDUCED) for (let i = 0; i < 4; i++) {
+      const tw = Math.max(0, Math.sin(now * 9 + h.seed + i * 1.7)), sx = (i % 2 ? 1 : -1) * (w / 2 + 6), sy = (i < 2 ? -1 : 1) * fs * 0.45, r = 3 + 5 * tw;
+      ctx.fillStyle = `hsla(${(hue + i * 90) % 360},100%,80%,${0.4 + 0.6 * tw})`;
+      ctx.beginPath(); ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r * 0.3, sy); ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r * 0.3, sy); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(sx - r, sy); ctx.lineTo(sx, sy + r * 0.3); ctx.lineTo(sx + r, sy); ctx.lineTo(sx, sy - r * 0.3); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.restore();
 }
 function comboMilestone(g){
   g.comboPop = { n:g.combo, t:0 }; g.flash = Math.max(g.flash || 0, 0.55); sfx('combo');
+  if (SET.dopa) spawnHype(g, Math.random() * 360);
   for (let i = 0; i < 26; i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 520, vy:-120 - Math.random() * 380, life:0, max:.7 + Math.random() * .4, color:[C.amber, C.teal, C.pink, C.lime, C.ink][i % 5], size:3 + Math.random() * 3 });
 }
 function laneFx(g, label, color, sec){ (g.laneFx || (g.laneFx = [])).push({ label, color, sec, t:0 }); }
@@ -1105,7 +1158,7 @@ function update(g, dt){
   g.pops = g.pops.filter(p => p.t < 0.7);
   if (g.laneFx) { for (const f of g.laneFx) f.t += dt; g.laneFx = g.laneFx.filter(f => f.t < 0.55); }
   // afterimages: remember recent poses while in flow
-  if (g.hype) { g.hype.t += dt; if (g.hype.t > 0.9) g.hype = null; }
+  if (g.hypes) { for (const h of g.hypes) h.t += dt; g.hypes = g.hypes.filter(h => h.t < HYPE_LIFE); }
   if (SET.ghosts && (g.flowOn || SET.dopa) && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
     (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur });
     const keepN = SET.dopa ? (LOWFX ? 30 : 60) : 12;   // dopa keeps 5x the history → 5x the afterimages
@@ -1567,13 +1620,7 @@ function drawHUD(g){
     ctx.fillStyle = `hsla(${hue},100%,60%,${0.05 + 0.1 * bp})`; ctx.fillRect(0, 0, W, H);
   }
   if (g.flash > 0) { ctx.fillStyle = SET.dopa ? `hsla(${g.flashHue || 0},100%,70%,${0.3 * g.flash})` : `rgba(255,244,230,${0.28 * g.flash})`; ctx.fillRect(0, 0, W, H); }
-  if (g.hype) {
-    const k = g.hype.t / 0.9, sc = 1 + 0.8 * Math.pow(1 - Math.min(1, k * 4), 3);
-    ctx.save(); ctx.globalAlpha = 1 - k * k; ctx.translate(W * g.hype.x, H * g.hype.y); ctx.rotate(g.hype.rot); ctx.scale(sc, sc); ctx.textAlign = 'center';
-    ctx.font = `400 ${Math.round(Math.min(56, W * 0.11))}px "Dela Gothic One", sans-serif`;
-    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(10,6,18,.85)'; ctx.strokeText(g.hype.text, 0, 0);
-    ctx.fillStyle = `hsl(${g.hype.hue},95%,65%)`; ctx.fillText(g.hype.text, 0, 0); ctx.restore();
-  }
+  if (SET.dopa) drawHypes(g);
   if (g.comboPop) {   // milestone: "50 COMBO!" bursts in the middle
     const k = g.comboPop.t / 1.2, sc = 1 + 0.6 * Math.pow(1 - Math.min(1, k * 3), 3);
     ctx.save(); ctx.globalAlpha = 1 - k * k; ctx.translate(W / 2, H * 0.32); ctx.scale(sc, sc); ctx.textAlign = 'center';
