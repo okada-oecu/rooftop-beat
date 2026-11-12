@@ -386,6 +386,39 @@ window.addEventListener('resize', resize); resize();
 const C = { amber:'#ffb547', teal:'#5fe1d9', lilac:'#c7a6ff', lime:'#b6f06a', ink:'#fff4e6', muted:'#b6a5c8', danger:'#ff5d73', roof:'#120d1a', dark:'#1a0f08' };
 C.pink = '#ff8ad8';
 const NOTE_COLOR = { up:C.amber, hold:C.teal, down:C.lilac, dhold:C.lilac, right:C.lime, left:C.pink };
+/* ドパガキモード palette: every colour is pushed to full saturation and its hue pulled toward the nearest
+   primary/secondary (red, yellow, green, cyan, blue, magenta). Dark colours stay dark, just pure. */
+const vividCache = new Map();
+function vividRGB(r, g, b){
+  r /= 255; g /= 255; b /= 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+  if (mx - mn < 0.12 || (l > 0.78 && mx - mn < 0.22)) return [r, g, b].map(v => Math.round(v * 255));   // whites, silvers, greys and near-blacks stay as they are
+  let h = 0;
+  if (mx !== mn) { const d = mx - mn; h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h *= 60; }
+  const snap = Math.round(h / 60) * 60, dh = ((snap - h + 540) % 360) - 180;
+  h = (h + dh * 0.7 + 360) % 360;
+  const L = l > 0.3 ? Math.min(0.62, Math.max(0.5, l)) : l * 1.15;   // bright colours become pure mid-tones
+  const q = L < 0.5 ? L * 2 : 1, p2 = 2 * L - q;   // S = 1
+  const f = t => { t = (t + 1) % 1; return t < 1 / 6 ? p2 + (q - p2) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p2 + (q - p2) * (2 / 3 - t) * 6 : p2; };
+  return [f(h / 360 + 1 / 3), f(h / 360), f(h / 360 - 1 / 3)].map(v => Math.round(v * 255));
+}
+function vivid(c){   // accepts '#rrggbb' or 'r,g,b'; anything else is returned unchanged
+  if (typeof c !== 'string') return c;
+  if (vividCache.has(c)) return vividCache.get(c);
+  let out = c, m;
+  if ((m = /^#([0-9a-f]{6})$/i.exec(c))) { const n = parseInt(m[1], 16), v = vividRGB(n >> 16, (n >> 8) & 255, n & 255); out = '#' + v.map(x => x.toString(16).padStart(2, '0')).join(''); }
+  else if ((m = /^(\d+),(\d+),(\d+)$/.exec(c))) out = vividRGB(+m[1], +m[2], +m[3]).join(',');
+  vividCache.set(c, out); return out;
+}
+const V = c => SET.dopa ? vivid(c) : c;
+const BASE_C = { ...C };
+// note colours get hand-picked primaries so each move stays distinct (yellow / cyan / violet / green / magenta / red)
+const DOPA_C = { amber:'#ffd400', teal:'#00f0ff', lilac:'#9d1cff', lime:'#22ff22', pink:'#ff14c8', danger:'#ff1238' };
+function applyPalette(){   // swap the shared UI/note colours in place so every drawer picks them up
+  for (const k of Object.keys(DOPA_C)) C[k] = SET.dopa ? DOPA_C[k] : BASE_C[k];
+  Object.assign(NOTE_COLOR, { up:C.amber, hold:C.teal, down:C.lilac, dhold:C.lilac, right:C.lime, left:C.pink });
+  if (typeof GRADE_COLOR !== 'undefined') Object.assign(GRADE_COLOR, { PERFECT:C.amber, GREAT:C.teal, GOOD:C.lilac });
+}
 const isLong = n => n.type === 'hold' || n.type === 'dhold';
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const TOUCH = matchMedia('(pointer: coarse)').matches;
@@ -775,7 +808,7 @@ function makeGame(stage, demo){
 const wBeats = g => WIN.good / g.spb;
 let LAST_SEC = 0;
 function grade(sec){ LAST_SEC = sec; const a = Math.abs(sec); return a <= WIN.perfect ? 'PERFECT' : a <= WIN.great ? 'GREAT' : 'GOOD'; }
-const GRADE_COLOR = { PERFECT:C.amber, GREAT:C.teal, GOOD:C.lilac };
+var GRADE_COLOR = { PERFECT:C.amber, GREAT:C.teal, GOOD:C.lilac };
 function pop(g, text, color){ g.pops.push({ text, color, x:g.x, y:g.y - 70, t:0 }); }
 function judge(g, gr, weight){
   if (g.demo) return;
@@ -795,7 +828,7 @@ function judge(g, gr, weight){
 }
 const FLOW_STEP = 1 / 8;
 const COMBO_MARKS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500];
-const RAINBOW = Array.from({ length:12 }, (_, i) => `hsl(${i * 30},95%,65%)`);
+const RAINBOW = Array.from({ length:12 }, (_, i) => `hsl(${i * 30},100%,55%)`);
 const HYPE = ['神！', 'えぐい！', '天才！', '止まらん！', '最高！', 'ヤバい！', 'キマった！', '音ハメ！', 'うますぎ！', 'ゾーン！'];
 function dopaHit(g, gr){
   const hue = (performance.now() / 4) % 360;
@@ -1075,7 +1108,8 @@ function update(g, dt){
   if (g.hype) { g.hype.t += dt; if (g.hype.t > 0.9) g.hype = null; }
   if (SET.ghosts && (g.flowOn || SET.dopa) && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
     (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur });
-    if (g.trail.length > 12) g.trail.shift();
+    const keepN = SET.dopa ? (LOWFX ? 30 : 60) : 12;   // dopa keeps 5x the history → 5x the afterimages
+    while (g.trail.length > keepN) g.trail.shift();
   } else if (g.trail && g.trail.length) g.trail.shift();
   while (g.noteLo < g.notes.length && (g.notes[g.noteLo].done || g.notes[g.noteLo].t < b - 2)) g.noteLo++;
 }
@@ -1091,6 +1125,17 @@ const THEMES = {
   sakura:{ jp:'桜', sky:['#2a1438', '#6b2f63', '#d46a8d', '#ffc1cf'], orb:'sun', orbCol:'#fff0f3', halo:'255,200,215', far:'#7a3a6c', mid:'#4a2047', roof:'#1d0f22', rim:'#ffb7c9', win:'255,200,220', winRate:0.12, stars:0.3, weather:'petals' },
 };
 const STAGE_THEME = { dusk:'dusk', neon:'night', sky:'dawn', pupa:'sakura', outside:'rain' };
+const vividThemes = new WeakMap();
+function themeNow(g){
+  const base = g.theme || (g.theme = pickTheme(g.stage));
+  if (!SET.dopa) return base;
+  if (!vividThemes.has(base)) {
+    const v = {};
+    for (const [k, val] of Object.entries(base)) v[k] = Array.isArray(val) ? val.map(vivid) : vivid(val);
+    vividThemes.set(base, v);
+  }
+  return vividThemes.get(base);
+}
 function pickTheme(stage){
   const keys = Object.keys(THEMES);
   if (SET.theme === 'random') return THEMES[keys[Math.floor(Math.random() * keys.length)]];
@@ -1122,7 +1167,7 @@ function drawWeather(g, th){
 }
 function drawSky(g){
   const pulse = REDUCED ? 0 : Math.exp(-frac(g.beat) * 6);
-  const th = g.theme || (g.theme = pickTheme(g.stage));
+  const th = themeNow(g);
   const gr = ctx.createLinearGradient(0, 0, 0, H);
   gr.addColorStop(0, th.sky[0]); gr.addColorStop(0.45, th.sky[1]); gr.addColorStop(0.72, th.sky[2]); gr.addColorStop(0.86, th.sky[3]);
   ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H);
@@ -1161,8 +1206,8 @@ function drawSky(g){
 
 function drawPipe(x1, x2, top, done){
   // a duct hung across the roof on two thin legs; standing height hits it, a slide clears it
-  ctx.fillStyle = '#3a2d4a'; ctx.fillRect(x1 + 4, top - 52, 3, 52); ctx.fillRect(x2 - 7, top - 52, 3, 52);
-  ctx.fillStyle = '#4b3a5e'; ctx.fillRect(x1, top - 56, x2 - x1, 24);
+  ctx.fillStyle = V('#3a2d4a'); ctx.fillRect(x1 + 4, top - 52, 3, 52); ctx.fillRect(x2 - 7, top - 52, 3, 52);
+  ctx.fillStyle = V('#4b3a5e'); ctx.fillRect(x1, top - 56, x2 - x1, 24);
   ctx.save(); ctx.beginPath(); ctx.rect(x1, top - 56, x2 - x1, 24); ctx.clip();
   ctx.fillStyle = done ? 'rgba(199,166,255,.25)' : C.lilac;
   for (let sx = x1 - 24; sx < x2; sx += 18) { ctx.beginPath(); ctx.moveTo(sx, top - 32); ctx.lineTo(sx + 9, top - 32); ctx.lineTo(sx + 21, top - 56); ctx.lineTo(sx + 12, top - 56); ctx.fill(); }
@@ -1175,7 +1220,7 @@ function drawPlatforms(g){
     const x1 = s.faceX != null ? s.faceX - g.camX : (s.face != null ? s.face * PPB : s.L * PPB - 10) - o - g.camX, x2 = s.T * PPB + 10 - o - g.camX, top = s.y - g.camY;
     if (x1 > VW + 20) break;
     if (x2 < -20) continue;
-    const th = g.theme || THEMES.dusk;
+    const th = themeNow(g);
     ctx.fillStyle = th.roof; ctx.fillRect(x1, top, x2 - x1, VH - top + 40);
     for (let wx = x1 + 14, c = 0; wx < x2 - 14; wx += 24, c++) for (let wy = top + 30, r = 0; wy < VH + 20; wy += 34, r++) {
       const h = hash(i, c, r);
@@ -1218,7 +1263,7 @@ function drawShaft(g, s, pulse){
   const roof = s.y - g.camY;
   // left wall: one billboard panel per left-wall kick, each on a pole to the roof below
   // right wall: where a right contact sits left of the building face, the building steps out at that height
-  const th = g.theme || THEMES.dusk;
+  const th = themeNow(g);
   for (const k of sh.kicks) {
     if (k.wall !== 'R' || k.panel >= sh.xR - 0.5) continue;
     const px = k.panel - g.camX, top = k.y - 75 - g.camY, bot = k.y + 45 - g.camY;
@@ -1227,11 +1272,11 @@ function drawShaft(g, s, pulse){
     ctx.fillStyle = 'rgba(182,240,106,.5)'; ctx.fillRect(px, top, 2, bot - top);
   }
   const panels = sh.kicks.filter(k => k.wall === 'L').map(k => ({ px:k.panel - g.camX, top:k.y - 75 - g.camY, bot:k.y + 45 - g.camY }));
-  ctx.fillStyle = '#2a2036';
+  ctx.fillStyle = V('#2a2036');
   for (const p of panels) ctx.fillRect(p.px - 44, p.bot, 4, Math.max(0, roof - p.bot));
   for (const p of panels) {
-    ctx.fillStyle = '#1b1426'; ctx.fillRect(p.px - 76, p.top, 76, p.bot - p.top);
-    ctx.fillStyle = 'rgba(255,138,216,.12)'; ctx.fillRect(p.px - 70, p.top + 8, 64, p.bot - p.top - 16);
+    ctx.fillStyle = V('#1b1426'); ctx.fillRect(p.px - 76, p.top, 76, p.bot - p.top);
+    ctx.fillStyle = SET.dopa ? 'rgba(255,0,200,.3)' : 'rgba(255,138,216,.12)'; ctx.fillRect(p.px - 70, p.top + 8, 64, p.bot - p.top - 16);
     ctx.fillStyle = C.pink; ctx.globalAlpha = 0.6 + 0.4 * pulse; ctx.fillRect(p.px - 1, p.top, 2, p.bot - p.top); ctx.globalAlpha = 1;
   }
   // takeoff mark for the ↑ into the shaft, drawn over the poles so it reads like every other jump
@@ -1303,7 +1348,7 @@ function drawRunner(g){
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
   const arm = (o, a, col) => { const e = seg2(o[0], o[1], a[0], 10); const h = seg2(e[0], e[1], a[0] + a[1], 10); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(h[0], h[1]); ctx.stroke(); };
-  const sk = skinNow(t);
+  const sk0 = skinNow(t), sk = GHOST_COL ? { ...sk0, body:GHOST_COL, far:GHOST_COL, scarf:GHOST_COL, accent:GHOST_COL, glow:null } : sk0;
   if (sk.glow && A0 >= 1 && !LOWFX) { ctx.fillStyle = sk.glow; ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(0, hipY - 6, 24, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = A0; }
   ctx.lineWidth = 4.5;
   limb(hip, legs[1], sk.far); arm(sh, arms[1], sk.far);
@@ -1339,18 +1384,23 @@ function skinNow(t){
   if (!sk.rainbow && !SET.dopa) return sk;
   const hue = (t * 120) % 360;   // ドパガキモード also turns every skin's scarf rainbow
   return sk.rainbow ? { ...sk, body:`hsl(${hue},90%,72%)`, far:`hsl(${(hue + 40) % 360},60%,50%)`, scarf:`hsl(${(hue + 180) % 360},95%,65%)`, glow:`hsl(${hue},90%,60%)` }
-    : { ...sk, scarf:`hsl(${hue},95%,65%)`, scarfLen:8 };
+    : { ...sk, body:vivid(sk.body), far:vivid(sk.far), accent:vivid(sk.accent), scarf:`hsl(${hue},100%,55%)`, scarfLen:8 };
 }
 
+let GHOST_COL = null;
 function drawGhosts(g){
   const tr = g.trail; if (!tr || tr.length < 3) return;
   const keep = { x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur };
   ctx.save();
-  for (let i = 0; i < tr.length - 2; i += LOWFX ? 6 : 3) {
+  const dopa = SET.dopa, hue0 = Math.floor(performance.now() / 60);
+  for (let i = 0; i < tr.length - 2; i += 3) {
     Object.assign(g, tr[i]);
-    ctx.globalAlpha = 0.1 + 0.28 * (i / tr.length);
+    const k = i / tr.length;
+    ctx.globalAlpha = dopa ? 0.35 + 0.45 * k : 0.1 + 0.28 * k;   // dopa: far less see-through
+    if (dopa) GHOST_COL = RAINBOW[(hue0 + i / 3) % RAINBOW.length];
     drawRunner(g);
   }
+  GHOST_COL = null;
   ctx.restore();
   Object.assign(g, keep);
 }
@@ -1803,7 +1853,7 @@ $('sSpeed').addEventListener('input', e => { SET.laneSpeed = +e.target.value; $(
 $('sHit').addEventListener('change', e => { SET.hitFx = e.target.value; saveSettings(); });
 for (const [id, k] of [['sLaneText','laneText'], ['sFastSlow','fastSlow'], ['sNear','near'], ['sGhosts','ghosts'], ['sTricks','tricks'], ['sWindows','windows'], ['sShake','shake'], ['sSpeedFx','speed'], ['sDopa','dopa']])
   $(id).addEventListener('change', e => { SET[k] = e.target.checked; saveSettings(); renderDopa(); });
-function renderDopa(){ $('dopaBtn').setAttribute('aria-pressed', String(!!SET.dopa)); $('dopaBtn').textContent = 'ドパガキモード：' + (SET.dopa ? 'ON' : 'OFF'); }
+function renderDopa(){ applyPalette(); $('dopaBtn').setAttribute('aria-pressed', String(!!SET.dopa)); $('dopaBtn').textContent = 'ドパガキモード：' + (SET.dopa ? 'ON' : 'OFF'); }
 $('dopaBtn').addEventListener('click', () => { SET.dopa = !SET.dopa; saveSettings(); renderDopa(); if (SET.dopa) { initAudio(); sfxBus && tone(actx.currentTime + 0.01, 'square', 880, 0.1, 0.12, sfxBus); tone(actx.currentTime + 0.08, 'square', 1320, 0.14, 0.12, sfxBus); } });
 renderDopa();
 function setLaneSpace(){ document.documentElement.style.setProperty('--lane-space', (SET.chartView === 'world' ? 30 : Math.round(46 * SET.lane + 30)) + 'px'); }
