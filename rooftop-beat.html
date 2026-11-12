@@ -373,8 +373,9 @@ const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 let W, H, DPR, ZOOM, VW, VH;
 // world zoom: the screen fits about 760×620 world px, times the player's "見え方の大きさ" setting
 let VIEW_SCALE = (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}').view || 1.2; } catch(e) { return 1.2; } })();
+let LOWFX = false;   // set when frames run slow: 1x resolution and thinner effects (see watchSpeed)
 function resize(){
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(LOWFX ? 1 : 2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
   ZOOM = Math.max(0.45, Math.min(1.8, Math.min(W / 760, H / 620) * VIEW_SCALE));
@@ -794,12 +795,13 @@ function judge(g, gr, weight){
 }
 const FLOW_STEP = 1 / 8;
 const COMBO_MARKS = [10, 25, 50, 75, 100, 150, 200, 300, 400, 500];
+const RAINBOW = Array.from({ length:12 }, (_, i) => `hsl(${i * 30},95%,65%)`);
 const HYPE = ['神！', 'えぐい！', '天才！', '止まらん！', '最高！', 'ヤバい！', 'キマった！', '音ハメ！', 'うますぎ！', 'ゾーン！'];
 function dopaHit(g, gr){
   const hue = (performance.now() / 4) % 360;
   g.flash = Math.max(g.flash || 0, gr === 'PERFECT' ? 0.45 : 0.25); g.flashHue = hue;
   g.shake = Math.max(g.shake, gr === 'PERFECT' ? 7 : 4);
-  for (let i = 0; i < 14; i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 600, vy:-150 - Math.random() * 420, life:0, max:.6 + Math.random() * .4, color:`hsl(${(hue + i * 26) % 360},95%,65%)`, size:3 + Math.random() * 4 });
+  for (let i = 0; i < (LOWFX ? 4 : 8); i++) g.parts.push({ x:g.x, y:g.y - 30, vx:(Math.random() - .5) * 600, vy:-150 - Math.random() * 420, life:0, max:.6 + Math.random() * .4, color:RAINBOW[(i + (hue / 30 | 0)) % RAINBOW.length], size:3 + Math.random() * 4 });
   if (gr === 'PERFECT' && (g.combo % 4 === 0 || Math.random() < 0.25)) g.hype = { text:HYPE[Math.floor(Math.random() * HYPE.length)], t:0, x:0.2 + Math.random() * 0.6, y:0.18 + Math.random() * 0.3, rot:(Math.random() - .5) * 0.5, hue };
   if (actx && sfxBus) { const t = actx.currentTime; tone(t, 'square', 660 * Math.pow(2, Math.min(g.combo, 36) / 24), 0.08, 0.07, sfxBus); }
 }
@@ -1065,6 +1067,7 @@ function update(g, dt){
   if (g.flowOn && g.mode === 'air' && Math.random() < 0.6) g.parts.push({ x:g.x - 6, y:g.y - 20 - Math.random() * 30, vx:-60 - Math.random() * 60, vy:-20, life:0, max:.4, color: Math.random() < 0.5 ? C.teal : C.amber, size:2 + Math.random() * 2 });
   for (const p of g.parts) { p.life += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; }
   g.parts = g.parts.filter(p => p.life < p.max);
+  if (g.parts.length > (LOWFX ? 60 : 140)) g.parts.splice(0, g.parts.length - (LOWFX ? 60 : 140));   // oldest go first
   for (const p of g.pops) p.t += dt;
   g.pops = g.pops.filter(p => p.t < 0.7);
   if (g.laneFx) { for (const f of g.laneFx) f.t += dt; g.laneFx = g.laneFx.filter(f => f.t < 0.55); }
@@ -1181,8 +1184,9 @@ function drawPlatforms(g){
     }
     ctx.fillStyle = th.rim; ctx.fillRect(x1, top, x2 - x1, 6);
     const edge = NOTE_COLOR[s.jn.type];
-    ctx.save(); ctx.globalAlpha = 0.55 + 0.45 * pulse; ctx.fillStyle = edge; ctx.shadowColor = edge; ctx.shadowBlur = 10 + 10 * pulse;
-    ctx.fillRect(x1, top - 1, x2 - x1, 2); ctx.restore();
+    ctx.fillStyle = edge;
+    ctx.globalAlpha = 0.12 + 0.18 * pulse; ctx.fillRect(x1, top - 5, x2 - x1, 10);   // glow band (cheap stand-in for a blur)
+    ctx.globalAlpha = 0.55 + 0.45 * pulse; ctx.fillRect(x1, top - 1, x2 - x1, 2); ctx.globalAlpha = 1;
     // wall face to kick off: lime chevrons where the runner touches
     if (s.face != null && s.faceX == null) {
       ctx.fillStyle = C.lime; ctx.globalAlpha = 0.5 + 0.5 * pulse;
@@ -1232,8 +1236,8 @@ function drawShaft(g, s, pulse){
   }
   // takeoff mark for the ↑ into the shaft, drawn over the poles so it reads like every other jump
   const tx = s.T * PPB - s.ox - g.camX;
-  ctx.save(); ctx.fillStyle = C.amber; ctx.shadowColor = C.amber; ctx.shadowBlur = 8 + 8 * pulse;
-  ctx.fillRect(tx - 1, roof - 14, 2, 14); ctx.restore();
+  ctx.fillStyle = C.amber; ctx.globalAlpha = 0.25 + 0.2 * pulse; ctx.fillRect(tx - 4, roof - 16, 8, 16); ctx.globalAlpha = 1;
+  ctx.fillRect(tx - 1, roof - 14, 2, 14);
   // a key mark at every contact: lime → on the building, pink ← on its panel
   for (const k of sh.kicks) {
     const cx = k.panel - g.camX, cy = k.y - 30 - g.camY, col = NOTE_COLOR[k.dir], sgn = k.dir === 'right' ? 1 : -1;
@@ -1300,7 +1304,7 @@ function drawRunner(g){
   const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
   const arm = (o, a, col) => { const e = seg2(o[0], o[1], a[0], 10); const h = seg2(e[0], e[1], a[0] + a[1], 10); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(h[0], h[1]); ctx.stroke(); };
   const sk = skinNow(t);
-  if (sk.glow) { ctx.shadowColor = sk.glow; ctx.shadowBlur = 12; }
+  if (sk.glow && A0 >= 1 && !LOWFX) { ctx.fillStyle = sk.glow; ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(0, hipY - 6, 24, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = A0; }
   ctx.lineWidth = 4.5;
   limb(hip, legs[1], sk.far); arm(sh, arms[1], sk.far);
   ctx.strokeStyle = sk.scarf; ctx.lineWidth = sk.scarfW || 3.5; ctx.beginPath(); ctx.moveTo(sh[0], sh[1] - 2);
@@ -1335,14 +1339,14 @@ function skinNow(t){
   if (!sk.rainbow && !SET.dopa) return sk;
   const hue = (t * 120) % 360;   // ドパガキモード also turns every skin's scarf rainbow
   return sk.rainbow ? { ...sk, body:`hsl(${hue},90%,72%)`, far:`hsl(${(hue + 40) % 360},60%,50%)`, scarf:`hsl(${(hue + 180) % 360},95%,65%)`, glow:`hsl(${hue},90%,60%)` }
-    : { ...sk, scarf:`hsl(${hue},95%,65%)`, scarfLen:8, glow:sk.glow || `hsl(${hue},90%,60%)` };
+    : { ...sk, scarf:`hsl(${hue},95%,65%)`, scarfLen:8 };
 }
 
 function drawGhosts(g){
   const tr = g.trail; if (!tr || tr.length < 3) return;
   const keep = { x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur };
-  ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < tr.length - 2; i += 3) {
+  ctx.save();
+  for (let i = 0; i < tr.length - 2; i += LOWFX ? 6 : 3) {
     Object.assign(g, tr[i]);
     ctx.globalAlpha = 0.1 + 0.28 * (i / tr.length);
     drawRunner(g);
@@ -1392,13 +1396,19 @@ function drawSpeed(g){
   }
   ctx.restore();
 }
+function halo(x, y, r){   // bright ring with a soft edge, no blur filter
+  ctx.save(); ctx.strokeStyle = C.ink;
+  ctx.globalAlpha = 0.25; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+}
 function drawHitFx(g, x, y, S, textY, noGrade){
   for (const f of g.laneFx || []) {
     const k = f.t / 0.55, a = 1 - k;
     ctx.save(); ctx.globalAlpha = a;
     if (SET.hitFx === 'ring' || SET.hitFx === 'both') {
-      ctx.strokeStyle = f.color; ctx.lineWidth = 4 * a + 1; ctx.shadowColor = f.color; ctx.shadowBlur = 14;
-      ctx.beginPath(); ctx.arc(x, y, (15 + 32 * Math.sqrt(k)) * S, 0, Math.PI * 2); ctx.stroke();
+      const rr = (15 + 32 * Math.sqrt(k)) * S;
+      ctx.strokeStyle = f.color; ctx.globalAlpha = a * 0.3; ctx.lineWidth = 10 * a + 2; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = a; ctx.lineWidth = 4 * a + 1; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
     }
     if (SET.hitFx === 'burst' || SET.hitFx === 'both') {
       ctx.fillStyle = f.color;
@@ -1429,7 +1439,7 @@ function drawWorldNotes(g){
   const b = g.beat, S = SET.lane, R = 11 * S, win = WIN.good / g.spb, LEAD = 1.25;
   const approach = (ax, ay, t, col) => {   // glow while the press window is open; a ring that shrinks onto the note by the beat
     const dt = t - b;
-    if (SET.near && Math.abs(dt) <= win) { ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.shadowColor = C.ink; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(ax, ay, R + 4 * S, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); }
+    if (SET.near && Math.abs(dt) <= win) halo(ax, ay, R + 4 * S);
     if (dt > 0 && dt < LEAD) {
       const k = dt / LEAD;
       ctx.save(); ctx.globalAlpha = 0.35 + 0.65 * (1 - k); ctx.strokeStyle = col; ctx.lineWidth = 2.5;
@@ -1472,8 +1482,7 @@ function drawLane(g){
   }
   const glow = (x, t) => {   // a note whose press window is open right now gets a bright halo
     if (!SET.near || Math.abs(t - b) > win) return;
-    ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 2.5; ctx.shadowColor = C.ink; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.arc(x, cy, R + 5 * S, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    halo(x, cy, R + 5 * S);
   };
   for (let i = g.noteLo; i < g.notes.length; i++) {
     const n = g.notes[i]; if (n.done) continue;
@@ -1505,7 +1514,7 @@ function drawHUD(g){
   if (g.demo) return;
   if (SET.dopa && !REDUCED) {
     const bp = Math.exp(-frac(g.beat) * 6), hue = (performance.now() / 6) % 360;
-    ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = `hsla(${hue},100%,55%,${0.08 + 0.16 * bp})`; ctx.fillRect(0, 0, W, H); ctx.restore();
+    ctx.fillStyle = `hsla(${hue},100%,60%,${0.05 + 0.1 * bp})`; ctx.fillRect(0, 0, W, H);
   }
   if (g.flash > 0) { ctx.fillStyle = SET.dopa ? `hsla(${g.flashHue || 0},100%,70%,${0.3 * g.flash})` : `rgba(255,244,230,${0.28 * g.flash})`; ctx.fillRect(0, 0, W, H); }
   if (g.hype) {
@@ -2721,8 +2730,15 @@ function edFrame(){
 }
 
 let last = performance.now();
+let slowFrames = 0, frameEma = 16;
+function watchSpeed(ms){
+  if (LOWFX || document.hidden) return;
+  frameEma += (ms - frameEma) * 0.05;
+  slowFrames = frameEma > 24 ? slowFrames + 1 : 0;
+  if (slowFrames > 90) { LOWFX = true; resize(); }   // resize() caps the resolution when LOWFX is on
+}
 function frame(now){
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const dt = Math.min(0.05, (now - last) / 1000); if (G && !G.demo && !paused) watchSpeed(now - last); last = now;
   if (G) {
     if (!paused) { update(G, dt); schedule(); }
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
