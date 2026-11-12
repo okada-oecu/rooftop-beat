@@ -530,6 +530,15 @@ function pad(t0, t1, midi){
   f.connect(g).connect(bus);
   [0, 7, 12].forEach((iv, i) => { const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(mtof(midi + iv), t0); o.frequency.exponentialRampToValueAtTime(mtof(midi + iv) * 1.06, t1); o.detune.value = (i - 1) * 7; o.connect(f); o.start(t0); o.stop(t1 + 0.1); });
 }
+const SE = { empty:null };
+async function loadSe(){
+  try { initAudio(); SE.empty = await decode(await (await fetch('se/empty.wav')).arrayBuffer()); } catch(e) {}
+}
+function playEmpty(){
+  if (!actx || !G || G.demo) return;
+  if (SE.empty) { const src = actx.createBufferSource(); src.buffer = SE.empty; src.connect(sfxBus); src.start(); }
+  else noise(actx.currentTime, 0.05, 'highpass', 3000, 0.12, sfxBus);
+}
 function sfx(kind){
   if (!actx || !G || G.demo) return;
   const t = actx.currentTime;
@@ -818,9 +827,9 @@ function shaftKick(g){
   sfx('kick'); dust(g, 9, NOTE_COLOR[k.dir], 150, k.wall === 'R' ? 1 : -1);
 }
 const inShaftFlight = g => g.segs[g.cur].shaft && (g.mode === 'cling' || (g.mode === 'air' && (g.arc.kind === 'toshaft' || g.arc.kind === 'shaftkick')));
-function hop(g, b, dur){
+function hop(g, b, dur, peak){
   const seg = g.segs[g.cur];
-  g.mode = 'air'; g.arc = { kind:'hop', b0:b, dur, y0:seg.y, y1:seg.y, peak:26 };
+  g.mode = 'air'; g.arc = { kind:'hop', b0:b, dur, y0:seg.y, y1:seg.y, peak:peak || 26 };
 }
 function startSlide(g, b, end){ g.mode = 'slide'; g.slideEnd = end; sfx('slide'); dust(g, 8, C.lilac, 140, 1); }
 function stopMusic(g){ if (!g.demo && bus) { bus.gain.cancelScheduledValues(actx.currentTime); bus.gain.setTargetAtTime(0.0001, actx.currentTime, 0.18); } }
@@ -854,15 +863,17 @@ function pressAt(g, dir, b){
     const nx = g.segs[g.arc.to];
     const tgt = dir === 'down' ? (nx.dn && !nx.dn.done ? nx.dn.s : null) : nx.goal ? null : nx.kind === 'hold' ? nx.T - nx.h : nx.T;
     if (tgt != null && Math.abs(b - tgt) * g.spb <= WIN.good) g.buffer = { dir, b };
+    else playEmpty();
     return;
   }
   if (g.mode === 'slide' && b >= g.slideEnd - 0.25 && dir !== 'down') g.mode = 'ground';   // the tail of a slide can be cut into the next move
   if (dir === 'up') {
-    if (g.mode !== 'ground') return;
+    if (g.mode !== 'ground') { playEmpty(); return; }
     if (seg.kind !== 'hold') {
       const sec = (b - seg.T) * g.spb;
       if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); jump(g, seg); }
       else if (b < seg.T && b > seg.T - 1) { stumble(g, 'EARLY'); hop(g, b, 0.5); }
+      else freeMove(g, b, 'up');
     } else {
       const S = seg.T - seg.h;
       if (b >= S - wB && b < seg.T - wB) {
@@ -871,9 +882,10 @@ function pressAt(g, dir, b){
         if (Math.abs(sec) <= WIN.good) judge(g, grade(sec), 0.5); else pop(g, 'LATE', C.muted);
       } else if (b >= seg.T - wB) { stumble(g, 'NO CHARGE'); hop(g, b, 0.6 * seg.air); }
       else if (b > S - 1) { stumble(g, 'EARLY'); hop(g, b, 0.5); }
+      else freeMove(g, b, 'up');
     }
   } else if (dir === 'down') {
-    if (g.mode !== 'ground') return;
+    if (g.mode !== 'ground') { playEmpty(); return; }
     const dn = seg.dn;
     if (dn && !dn.done && dn.type === 'dhold' && !dn.started) {
       const sec = (b - dn.s) * g.spb;
@@ -885,22 +897,32 @@ function pressAt(g, dir, b){
       if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); dn.done = true; startSlide(g, b, dn.t + 0.6); return; }
       if (b < dn.t && b > dn.t - 1) { stumble(g, 'EARLY'); startSlide(g, b, b + 0.45); return; }
     }
-    startSlide(g, b, b + 0.5);   // free slide: harmless unless it eats a jump
+    playEmpty(); startSlide(g, b, b + 0.5);   // free slide: harmless unless it eats a jump
   } else if ((dir === 'left' || dir === 'right') && inShaftFlight(g)) {
     const k = seg.shaft.kicks[g.ki];
-    if (k.note.done || dir !== k.dir) return;
+    if (k.note.done || dir !== k.dir) { playEmpty(); return; }
     const sec = (b - k.t) * g.spb;
     if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); k.note.done = true; if (g.mode === 'cling') shaftKick(g); else g.kickQueued = true; }
     else if (sec < 0) fall(g, 'EARLY', '壁ジャンプが早すぎた');
+  } else if (dir === 'left' && !inShaftFlight(g)) {
+    freeMove(g, b, 'left');
   } else if (dir === 'right') {
     const kn = seg.kn;
-    if (!kn || kn.done) return;
-    const towardWall = g.mode === 'wall' || (g.mode === 'air' && g.arc.kind === 'towall');
-    if (!towardWall) return;
+    const towardWall = kn && !kn.done && (g.mode === 'wall' || (g.mode === 'air' && g.arc.kind === 'towall'));
+    if (!towardWall) { freeMove(g, b, dir); return; }
     const sec = (b - kn.t) * g.spb;
     if (Math.abs(sec) <= WIN.good) { judge(g, grade(sec), 1); kn.done = true; if (g.mode === 'wall') wallKick(g); else g.kickQueued = true; }
     else if (sec < 0) fall(g, 'EARLY', '空中で壁キックが早すぎた');
   }
+}
+// a press away from any note: no judgement, no penalty — the runner just moves (and the empty SE plays)
+// ↑ = a small hop, ← → = a hop with a twist. Only on the ground, and only far enough from the next note
+// that the hop is over before its window opens (pressAt reaches here only > 1 beat before the note).
+function freeMove(g, b, dir){
+  playEmpty();
+  if (g.mode !== 'ground') return;
+  if (dir === 'up') hop(g, b, 0.4, 32);
+  else { hop(g, b, 0.35, 18); g.arc.trick = 'twist'; g.arc.face = dir; }
 }
 // letting go of ↓ during a long slide: on the duct's end beat it is judged, before that you stand up into it
 function releaseDown(){
@@ -1203,7 +1225,7 @@ function drawRunner(g){
   const A0 = ctx.globalAlpha;   // < 1 when drawing an afterimage
   const b = g.beat, px = g.x - g.camX, py = g.y - g.camY, seg = g.segs[g.cur];
   ctx.save(); ctx.translate(px, py);
-  const facingLeft = (g.mode === 'cling' && seg.shaft.kicks[g.ki].wall === 'L') || (g.mode === 'air' && g.arc.x0 != null && g.arc.x1 < g.arc.x0);
+  const facingLeft = (g.mode === 'cling' && seg.shaft.kicks[g.ki].wall === 'L') || (g.mode === 'air' && g.arc.x0 != null && g.arc.x1 < g.arc.x0) || (g.mode === 'air' && g.arc.face === 'left');
   if (facingLeft) ctx.scale(-1, 1);
   if (g.squash > 0 && !REDUCED) { const q = g.squash * g.squash; ctx.scale(1 + 0.3 * q, 1 - 0.34 * q); }   // feet are the origin, so this squashes onto the roof
   let hipY = -25, lean = 0.28, legs, arms, rot = 0, twist = 1;
@@ -2692,6 +2714,7 @@ function frame(now){
 toMenu();
 for (const s of Object.values(SONGS)) loadSong(s);
 dbAll().then(() => renderMine());
+loadSe();
 renderAdmin();
 loadShared();
 requestAnimationFrame(frame);
