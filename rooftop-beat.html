@@ -574,14 +574,20 @@ function pad(t0, t1, midi){
   f.connect(g).connect(bus);
   [0, 7, 12].forEach((iv, i) => { const o = actx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(mtof(midi + iv), t0); o.frequency.exponentialRampToValueAtTime(mtof(midi + iv) * 1.06, t1); o.detune.value = (i - 1) * 7; o.connect(f); o.start(t0); o.stop(t1 + 0.1); });
 }
-const SE = { empty:null };
+// recorded sound effects in se/: a press that hits no note, and the PERFECT / GOOD judgements
+const SE = { empty:null, perfect:null, good:null };
 async function loadSe(){
-  try { initAudio(); SE.empty = await decode(await (await fetch('se/empty.wav')).arrayBuffer()); } catch(e) {}
+  initAudio();
+  await Promise.all(Object.keys(SE).map(async k => { try { SE[k] = await decode(await (await fetch(`se/${k}.wav`)).arrayBuffer()); } catch(e) {} }));
+}
+function playSe(name){   // false if the file is not loaded (then the caller uses its synth fallback)
+  if (!actx || !G || G.demo || !SE[name]) return false;
+  const src = actx.createBufferSource(); src.buffer = SE[name]; src.connect(sfxBus); src.start();
+  return true;
 }
 function playEmpty(){
   if (!actx || !G || G.demo) return;
-  if (SE.empty) { const src = actx.createBufferSource(); src.buffer = SE.empty; src.connect(sfxBus); src.start(); }
-  else noise(actx.currentTime, 0.05, 'highpass', 3000, 0.12, sfxBus);
+  if (!playSe('empty')) noise(actx.currentTime, 0.05, 'highpass', 3000, 0.12, sfxBus);
 }
 function sfx(kind){
   if (!actx || !G || G.demo) return;
@@ -816,7 +822,9 @@ function judge(g, gr, weight){
   g.score += Math.round({ PERFECT:300, GREAT:200, GOOD:100 }[gr] * weight * (1 + Math.min(g.combo, 100) / 50));
   pop(g, gr, GRADE_COLOR[gr]);
   laneFx(g, gr, GRADE_COLOR[gr], LAST_SEC);
-  if (gr !== 'GOOD') sfx(gr === 'PERFECT' ? 'perfect' : 'great');
+  if (gr === 'PERFECT') { if (!playSe('perfect')) sfx('perfect'); }
+  else if (gr === 'GOOD') playSe('good');
+  else sfx('great');
   g.comboBump = 1;
   if (COMBO_MARKS.includes(g.combo) || (g.combo > 500 && g.combo % 100 === 0)) comboMilestone(g);
   if (SET.dopa) dopaHit(g, gr);
