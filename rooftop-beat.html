@@ -369,7 +369,8 @@ kbd{font:700 11px var(--mono);padding:2px 6px;border-radius:4px;border:1px solid
 
 <script>
 (() => {
-const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const cv = document.getElementById('c');
+let ctx = cv.getContext('2d');   // let: afterimages and hype words are pre-drawn by pointing ctx at an offscreen canvas for a moment
 let W, H, DPR, ZOOM, VW, VH;
 // world zoom: the screen fits about 760×620 world px, times the player's "見え方の大きさ" setting
 let VIEW_SCALE = (() => { try { return JSON.parse(localStorage.getItem('rb-settings') || '{}').view || 1.2; } catch(e) { return 1.2; } })();
@@ -867,10 +868,25 @@ function spawnHype(g, hue){
   const list = g.hypes || (g.hypes = []);
   const used = new Set(list.map(h => h.slot));
   let free = [0, 1, 2, 3, 4].filter(i => !used.has(i));
-  if (!free.length) { const old = list.shift(); free = [old.slot]; }   // full: the oldest word makes room
+  if (!free.length) { const old = list.shift(); giveSprite(old.spr); free = [old.slot]; }   // full: the oldest word makes room
   const slot = free[Math.floor(Math.random() * free.length)];
   list.push({ text:HYPE[Math.floor(Math.random() * HYPE.length)], t:0, slot, rot:(Math.random() - .5) * 0.35, hue:hue % 360, seed:Math.random() * 10 });
-  if (list.length > HYPE_MAX) list.shift();
+  if (list.length > HYPE_MAX) giveSprite(list.shift().spr);
+}
+function hypeSprite(h, fs){   // the expensive part of a word (thick strokes on big glyphs) is drawn once into a canvas
+  giveSprite(h.spr);
+  const font = `400 ${fs}px "Dela Gothic One", sans-serif`;
+  ctx.save(); ctx.font = font; const w0 = ctx.measureText(h.text).width; ctx.restore();
+  const pad = fs * 0.5, sw = w0 + pad * 2, sh = fs * 1.9, sc = DPR;
+  const c = takeSprite(Math.ceil(sw * sc), Math.ceil(sh * sc)), x = c.getContext('2d');
+  x.setTransform(sc, 0, 0, sc, 0, 0); x.font = font; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineJoin = 'round';
+  const cx = sw / 2, cy = sh / 2, hue = h.hue;
+  x.strokeStyle = `hsla(${hue},100%,60%,.35)`; x.lineWidth = fs * 0.36; x.strokeText(h.text, cx, cy);
+  x.strokeStyle = 'rgba(8,4,16,.9)'; x.lineWidth = fs * 0.16; x.strokeText(h.text, cx, cy);
+  const gr = x.createLinearGradient(cx - w0 / 2, 0, cx + w0 / 2, 0);
+  gr.addColorStop(0, `hsl(${hue},100%,62%)`); gr.addColorStop(0.5, `hsl(${(hue + 60) % 360},100%,70%)`); gr.addColorStop(1, `hsl(${(hue + 120) % 360},100%,62%)`);
+  x.fillStyle = gr; x.fillText(h.text, cx, cy);
+  Object.assign(h, { spr:c, sprFs:fs, w0, sw, sh });
 }
 function drawHypes(g){
   if (!g.hypes || !g.hypes.length) return;
@@ -882,19 +898,14 @@ function drawHypes(g){
     const k = h.t / HYPE_LIFE, sl = slots[h.slot];
     const pop = h.t < 0.18 ? 1.35 - 0.35 * (h.t / 0.18) + Math.sin(h.t / 0.18 * Math.PI) * 0.25 : 1;   // bounce in
     const shake = h.t < 0.25 && !REDUCED ? (Math.random() - .5) * 6 * (1 - h.t / 0.25) : 0;
-    const w0 = ctx.measureText(h.text).width, fit = Math.min(1, (W * sl.maxW) / w0), w = w0 * fit, hue = (h.hue + now * 240) % 360;
+    if (!h.spr || h.sprFs !== fs) hypeSprite(h, fs);
+    const w0 = h.w0, fit = Math.min(1, (W * sl.maxW) / w0), w = w0 * fit, hue = (h.hue + now * 240) % 360;
     const x = clamp(W * sl.x, w / 2 + 14, W - w / 2 - 14) + shake, y = band.top + band.h * sl.y - 16 * k;   // stays on screen, drifts up a little
     // if the runner jumps up into a word, that word steps out of the way (nearly transparent) until it leaves
     const over = Math.abs(x - rx) < w / 2 + 40 * ZOOM && y + fs * 0.6 > ryTop && y - fs * 0.6 < ryBot;
     ctx.save(); ctx.globalAlpha = (k > 0.7 ? (1 - k) / 0.3 : 1) * (over ? 0.15 : 1);
     ctx.translate(x, y); ctx.rotate(h.rot + (REDUCED ? 0 : Math.sin(now * 14 + h.seed) * 0.05)); ctx.scale(pop * fit, pop * fit);
-    // soft coloured glow (wide translucent stroke, no blur filter), dark outline, then a rainbow gradient fill
-    ctx.lineJoin = 'round';
-    ctx.strokeStyle = `hsla(${hue},100%,60%,.35)`; ctx.lineWidth = fs * 0.36; ctx.strokeText(h.text, 0, 0);
-    ctx.strokeStyle = 'rgba(8,4,16,.9)'; ctx.lineWidth = fs * 0.16; ctx.strokeText(h.text, 0, 0);
-    const gr = ctx.createLinearGradient(-w / 2, 0, w / 2, 0);
-    gr.addColorStop(0, `hsl(${hue},100%,62%)`); gr.addColorStop(0.5, `hsl(${(hue + 60) % 360},100%,70%)`); gr.addColorStop(1, `hsl(${(hue + 120) % 360},100%,62%)`);
-    ctx.fillStyle = gr; ctx.fillText(h.text, 0, 0);
+    ctx.drawImage(h.spr, -h.sw / 2, -h.sh / 2, h.sw, h.sh);   // glow, outline and rainbow were drawn once in hypeSprite
     // twinkling sparkles at the corners
     if (!REDUCED) for (let i = 0; i < 4; i++) {
       const tw = Math.max(0, Math.sin(now * 9 + h.seed + i * 1.7)), sx = (i % 2 ? 1 : -1) * (w0 / 2 + 8), sy = (i < 2 ? -1 : 1) * fs * 0.45, r = (3 + 5 * tw) * fs / 44;
@@ -1174,12 +1185,12 @@ function update(g, dt){
   g.pops = g.pops.filter(p => p.t < 0.7);
   if (g.laneFx) { for (const f of g.laneFx) f.t += dt; g.laneFx = g.laneFx.filter(f => f.t < 0.55); }
   // afterimages: remember recent poses while in flow
-  if (g.hypes) { for (const h of g.hypes) h.t += dt; g.hypes = g.hypes.filter(h => h.t < HYPE_LIFE); }
+  if (g.hypes) { for (const h of g.hypes) h.t += dt; g.hypes = g.hypes.filter(h => { if (h.t < HYPE_LIFE) return true; giveSprite(h.spr); return false; }); }
   if (SET.ghosts && (g.flowOn || SET.dopa) && g.mode !== 'fall' && g.mode !== 'crash' && !REDUCED) {
-    (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur });
+    (g.trail || (g.trail = [])).push({ x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur, n:(g.trailN = (g.trailN || 0) + 1) });
     const keepN = SET.dopa ? (LOWFX ? 30 : 60) : 12;   // dopa keeps 5x the history → 5x the afterimages
-    while (g.trail.length > keepN) g.trail.shift();
-  } else if (g.trail && g.trail.length) g.trail.shift();
+    while (g.trail.length > keepN) giveSprite(g.trail.shift().spr);
+  } else if (g.trail && g.trail.length) giveSprite(g.trail.shift().spr);
   while (g.noteLo < g.notes.length && (g.notes[g.noteLo].done || g.notes[g.noteLo].t < b - 2)) g.noteLo++;
 }
 
@@ -1418,7 +1429,7 @@ function drawRunner(g){
   const limb = (o, l, col) => { const k = seg2(o[0], o[1], l[0], 12); const f = seg2(k[0], k[1], l[0] - l[1], 13); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(k[0], k[1]); ctx.lineTo(f[0], f[1]); ctx.stroke(); };
   const arm = (o, a, col) => { const e = seg2(o[0], o[1], a[0], 10); const h = seg2(e[0], e[1], a[0] + a[1], 10); ctx.strokeStyle = col; ctx.beginPath(); ctx.moveTo(o[0], o[1]); ctx.lineTo(e[0], e[1]); ctx.lineTo(h[0], h[1]); ctx.stroke(); };
   const sk0 = skinNow(t), sk = GHOST_COL ? { ...sk0, body:GHOST_COL, far:GHOST_COL, scarf:GHOST_COL, accent:GHOST_COL, glow:null } : sk0;
-  if (sk.glow && A0 >= 1 && !LOWFX) { ctx.fillStyle = sk.glow; ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(0, hipY - 6, 24, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = A0; }
+  if (sk.glow && A0 >= 1 && !LOWFX && !GHOST_RENDER) { ctx.fillStyle = sk.glow; ctx.globalAlpha = 0.18; ctx.beginPath(); ctx.arc(0, hipY - 6, 24, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = A0; }
   ctx.lineWidth = 4.5;
   limb(hip, legs[1], sk.far); arm(sh, arms[1], sk.far);
   ctx.strokeStyle = sk.scarf; ctx.lineWidth = sk.scarfW || 3.5; ctx.beginPath(); ctx.moveTo(sh[0], sh[1] - 2);
@@ -1456,22 +1467,38 @@ function skinNow(t){
     : { ...sk, body:vivid(sk.body), far:vivid(sk.far), accent:vivid(sk.accent), scarf:`hsl(${hue},100%,55%)`, scarfLen:8 };
 }
 
-let GHOST_COL = null;
+// offscreen canvases reused for pre-drawn afterimages and hype words (draw once, then only paste)
+const spritePool = [];
+function takeSprite(w, h){
+  const c = spritePool.pop() || document.createElement('canvas');
+  if (c.width !== w || c.height !== h) { c.width = w; c.height = h; } else c.getContext('2d').clearRect(0, 0, w, h);
+  const x = c.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1;
+  return c;
+}
+function giveSprite(c){ if (c && spritePool.length < 90) spritePool.push(c); }
+let GHOST_COL = null, GHOST_RENDER = false;
+const GS = 170;   // world-px box an afterimage is drawn into (the runner plus flips and limbs)
+function ghostSprite(g, e){   // draw one past pose into its own canvas, once
+  const scale = ZOOM * DPR, px = Math.ceil(GS * scale), c = takeSprite(px, px);
+  const keepCtx = ctx, keep = { x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur, camX:g.camX, camY:g.camY };
+  ctx = c.getContext('2d'); ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  Object.assign(g, e); g.camX = e.x - GS / 2; g.camY = e.y - GS * 0.7;
+  GHOST_COL = SET.dopa ? RAINBOW[e.n % RAINBOW.length] : null; GHOST_RENDER = true;
+  try { drawRunner(g); } finally { ctx = keepCtx; Object.assign(g, keep); GHOST_COL = null; GHOST_RENDER = false; }
+  e.spr = c;
+}
 function drawGhosts(g){
   const tr = g.trail; if (!tr || tr.length < 3) return;
-  const keep = { x:g.x, y:g.y, beat:g.beat, mode:g.mode, arc:g.arc, ki:g.ki, squash:g.squash, chargeAt:g.chargeAt, cur:g.cur };
+  const dopa = SET.dopa;
   ctx.save();
-  const dopa = SET.dopa, hue0 = Math.floor(performance.now() / 60);
   for (let i = 0; i < tr.length - 2; i += 3) {
-    Object.assign(g, tr[i]);
+    const e = tr[i];
+    if (!e.spr) ghostSprite(g, e);   // normally only the newest pose needs drawing this frame
     const k = i / tr.length;
     ctx.globalAlpha = dopa ? 0.35 + 0.45 * k : 0.1 + 0.28 * k;   // dopa: far less see-through
-    if (dopa) GHOST_COL = RAINBOW[(hue0 + i / 3) % RAINBOW.length];
-    drawRunner(g);
+    ctx.drawImage(e.spr, e.x - GS / 2 - g.camX, e.y - GS * 0.7 - g.camY, GS, GS);
   }
-  GHOST_COL = null;
   ctx.restore();
-  Object.assign(g, keep);
 }
 function drawWorld(g){
   ctx.save();
@@ -1680,8 +1707,8 @@ function drawHUD(g){
     const n = Math.floor(cd) + 4;
     { ctx.fillStyle = n === 7 ? C.amber : C.ink; ctx.font = `400 ${Math.min(120, W * 0.2)}px "Dela Gothic One", sans-serif`; ctx.fillText(n === 7 ? 'GO' : String(7 - n), W / 2, H * 0.42); }
   }
-  // first two of each note type get a one-line explanation as they approach
-  if (g.mode === 'fall' || g.mode === 'crash') return;
+  // first two of each note type get a one-line explanation as they approach (hidden while dopa hype words fill the sky)
+  if (g.mode === 'fall' || g.mode === 'crash' || (SET.dopa && g.hypes && g.hypes.length)) return;
   for (let i = g.noteLo; i < g.notes.length; i++) {
     const n = g.notes[i]; if (n.s - b > 4) break;
     if (n.done || n.nth > 2) continue;
